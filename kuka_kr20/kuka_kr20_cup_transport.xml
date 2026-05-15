@@ -42,8 +42,8 @@
             diffuse="0.95 0.94 0.90" specular="0.30 0.30 0.30" />
         <light name="rim_light" pos="2.2 1.8 3.0" dir="-0.5 -0.3 -1" directional="true"
             diffuse="0.32 0.46 0.72" specular="0.18 0.18 0.22" />
-        <camera name="paper_camera" pos="2.85 -2.75 2.35" xyaxes="0.68 0.73 0 -0.38 0.35 0.86"
-            fovy="34" />
+        <camera name="paper_camera" pos="3.70 -3.50 3.00"
+            xyaxes="0.764628 0.644472 0 -0.252585 0.299677 0.919997" fovy="46" />
         <geom name="floor" type="plane" pos="0 0 0" size="3.0 3.0 0.02" material="floor_mat"
             contype="1" conaffinity="1" />
 
