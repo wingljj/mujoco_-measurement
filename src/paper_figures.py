@@ -23,8 +23,8 @@ except ImportError:  # pragma: no cover
 
 DPI = 360
 SAFE_LIMIT_DEG = 45.0
-CHINESE_FONT = fm.FontProperties(fname=r"C:\Windows\Fonts\simsun.ttc")
-LATIN_FONT = fm.FontProperties(fname=r"C:\Windows\Fonts\times.ttf")
+CHINESE_FONT = fm.FontProperties(fname=r"C:\Windows\Fonts\msyhbd.ttc", weight="bold")
+LATIN_FONT = fm.FontProperties(fname=r"C:\Windows\Fonts\timesbd.ttf", weight="bold")
 
 
 def _has_cjk(text: str) -> bool:
@@ -37,6 +37,7 @@ def apply_figure_fonts(fig: plt.Figure) -> None:
         if not value:
             continue
         text.set_fontproperties(CHINESE_FONT if _has_cjk(value) else LATIN_FONT)
+        text.set_fontweight("bold")
     for ax in fig.axes:
         tick_labels = ax.get_xticklabels() + ax.get_yticklabels()
         if hasattr(ax, "get_zticklabels"):
@@ -44,6 +45,7 @@ def apply_figure_fonts(fig: plt.Figure) -> None:
         for tick in tick_labels:
             value = tick.get_text()
             tick.set_fontproperties(CHINESE_FONT if _has_cjk(value) else LATIN_FONT)
+            tick.set_fontweight("bold")
 
 
 def configure_style() -> None:
@@ -51,10 +53,14 @@ def configure_style() -> None:
         {
             "font.family": "SimSun",
             "font.sans-serif": ["SimSun"],
+            "font.weight": "bold",
             "font.size": 9,
             "axes.labelsize": 9,
+            "axes.labelweight": "bold",
             "axes.titlesize": 10,
+            "axes.titleweight": "bold",
             "legend.fontsize": 8,
+            "legend.title_fontsize": 8,
             "xtick.labelsize": 8,
             "ytick.labelsize": 8,
             "figure.dpi": DPI,
