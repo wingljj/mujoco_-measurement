@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import mujoco
 import numpy as np
 from matplotlib import gridspec
-from matplotlib.collections import LineCollection
+from matplotlib import font_manager as fm
 from matplotlib.patches import Circle, FancyArrowPatch, Rectangle
 
 try:
@@ -23,12 +23,34 @@ except ImportError:  # pragma: no cover
 
 DPI = 360
 SAFE_LIMIT_DEG = 45.0
+CHINESE_FONT = fm.FontProperties(fname=r"C:\Windows\Fonts\simsun.ttc")
+LATIN_FONT = fm.FontProperties(fname=r"C:\Windows\Fonts\times.ttf")
+
+
+def _has_cjk(text: str) -> bool:
+    return any("\u4e00" <= char <= "\u9fff" for char in text)
+
+
+def apply_figure_fonts(fig: plt.Figure) -> None:
+    for text in fig.findobj(match=mpl.text.Text):
+        value = text.get_text()
+        if not value:
+            continue
+        text.set_fontproperties(CHINESE_FONT if _has_cjk(value) else LATIN_FONT)
+    for ax in fig.axes:
+        tick_labels = ax.get_xticklabels() + ax.get_yticklabels()
+        if hasattr(ax, "get_zticklabels"):
+            tick_labels += ax.get_zticklabels()
+        for tick in tick_labels:
+            value = tick.get_text()
+            tick.set_fontproperties(CHINESE_FONT if _has_cjk(value) else LATIN_FONT)
 
 
 def configure_style() -> None:
     mpl.rcParams.update(
         {
-            "font.family": "DejaVu Sans",
+            "font.family": "SimSun",
+            "font.sans-serif": ["SimSun"],
             "font.size": 9,
             "axes.labelsize": 9,
             "axes.titlesize": 10,
@@ -41,6 +63,11 @@ def configure_style() -> None:
             "ps.fonttype": 42,
             "axes.linewidth": 0.85,
             "grid.linewidth": 0.45,
+            "mathtext.fontset": "custom",
+            "mathtext.rm": "Times New Roman",
+            "mathtext.it": "Times New Roman:italic",
+            "mathtext.bf": "Times New Roman:bold",
+            "axes.unicode_minus": False,
         }
     )
 
@@ -94,6 +121,7 @@ def load_trajectories(path: Path) -> Dict[str, List[np.ndarray] | np.ndarray]:
 
 def save(fig: plt.Figure, out_dir: Path, name: str) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
+    apply_figure_fonts(fig)
     fig.savefig(out_dir / f"{name}.png", bbox_inches="tight", facecolor=fig.get_facecolor())
     fig.savefig(out_dir / f"{name}.pdf", bbox_inches="tight", facecolor=fig.get_facecolor())
     print(f"saved {out_dir / f'{name}.png'} and {out_dir / f'{name}.pdf'}")
@@ -106,10 +134,10 @@ def plot_method_overview(out_dir: Path) -> None:
     ax.set_ylim(0, 1)
 
     boxes = [
-        (0.04, 0.58, 0.17, 0.24, "Target sampling\nin workspace", "#2ec4b6"),
-        (0.29, 0.58, 0.17, 0.24, "Constrained IK\nposition + tilt", "#8338ec"),
-        (0.54, 0.58, 0.17, 0.24, "Smooth joint\ntrajectory", "#ffbe0b"),
-        (0.79, 0.58, 0.17, 0.24, "MuJoCo servo\nvalidation", "#fb5607"),
+        (0.04, 0.58, 0.17, 0.24, "可达空间\n目标采样", "#2ec4b6"),
+        (0.29, 0.58, 0.17, 0.24, "约束逆运动学\n位置+倾角", "#8338ec"),
+        (0.54, 0.58, 0.17, 0.24, "平滑关节\n轨迹生成", "#ffbe0b"),
+        (0.79, 0.58, 0.17, 0.24, "MuJoCo伺服\n仿真验证", "#fb5607"),
     ]
     for x, y, w, h, text, color in boxes:
         rect = Rectangle((x, y), w, h, facecolor=color, edgecolor="#1f1f1f", linewidth=1.0, alpha=0.88)
@@ -135,13 +163,13 @@ def plot_method_overview(out_dir: Path) -> None:
     ax.add_patch(Rectangle((cup_center[0] - 0.038, cup_center[1] - 0.05), 0.076, 0.055,
                            facecolor="#48cae4", edgecolor="none", alpha=0.85))
     ax.plot([cup_center[0], cup_center[0]], [cup_center[1] - 0.11, cup_center[1] + 0.13],
-            color="#023e8a", linewidth=2.0, label="cup axis")
+            color="#023e8a", linewidth=2.0, label="杯体轴线")
     ax.plot([cup_center[0], cup_center[0] + 0.13], [cup_center[1] - 0.11, cup_center[1] + 0.04],
-            color="#d00000", linewidth=1.8, linestyle="--", label="45 deg limit")
+            color="#d00000", linewidth=1.8, linestyle="--", label="45°阈值")
     ax.add_patch(Circle((cup_center[0], cup_center[1] - 0.11), 0.012, color="#023e8a"))
-    ax.text(0.08, 0.28, r"Constraint: $\theta=\cos^{-1}(\hat{z}_{cup}\cdot\hat{z}_{world}) \leq 45^\circ$",
+    ax.text(0.08, 0.28, r"防洒约束：$\theta=\cos^{-1}(\hat{z}_{cup}\cdot\hat{z}_{world}) \leq 45^\circ$",
             ha="left", va="center", fontsize=11, weight="bold")
-    ax.text(0.08, 0.15, r"Objective: minimize end-effector error, joint motion, and joint-limit proximity",
+    ax.text(0.08, 0.15, "优化目标：最小化末端误差、关节运动量和关节限位接近度",
             ha="left", va="center", color="#333333")
     ax.legend(loc="lower right", frameon=False)
     save(fig, out_dir, "method_pipeline_overview")
@@ -156,9 +184,9 @@ def plot_workspace_multiview(rows: List[Dict[str, object]], out_dir: Path) -> No
 
     fig, axes = plt.subplots(1, 3, figsize=(9.2, 3.0), facecolor="white")
     views = [
-        (0, 1, "Top view", "X (m)", "Y (m)"),
-        (0, 2, "Front view", "X (m)", "Z (m)"),
-        (1, 2, "Side view", "Y (m)", "Z (m)"),
+        (0, 1, "俯视图", "X (m)", "Y (m)"),
+        (0, 2, "正视图", "X (m)", "Z (m)"),
+        (1, 2, "侧视图", "Y (m)", "Z (m)"),
     ]
     for ax, (i, j, title, xlabel, ylabel) in zip(axes, views):
         if np.any(~success):
@@ -169,7 +197,7 @@ def plot_workspace_multiview(rows: List[Dict[str, object]], out_dir: Path) -> No
                 marker="x",
                 color="#d7263d",
                 linewidths=1.5,
-                label="Failed",
+                label="失败",
             )
         sc = ax.scatter(
             targets[success, i],
@@ -181,7 +209,7 @@ def plot_workspace_multiview(rows: List[Dict[str, object]], out_dir: Path) -> No
             vmax=SAFE_LIMIT_DEG,
             edgecolors="#111111",
             linewidths=0.25,
-            label="Success",
+            label="成功",
         )
         ax.scatter([0], [0], marker="^", s=75, color="#111111")
         ax.set_title(title, weight="bold")
@@ -190,7 +218,7 @@ def plot_workspace_multiview(rows: List[Dict[str, object]], out_dir: Path) -> No
         ax.grid(True, alpha=0.28)
         ax.set_aspect("equal", adjustable="box")
     cbar = fig.colorbar(sc, ax=axes, shrink=0.82, pad=0.02)
-    cbar.set_label("Maximum tilt (deg)")
+    cbar.set_label("最大倾角 (°)")
     save(fig, out_dir, "workspace_multiview_projection")
     plt.close(fig)
 
@@ -226,11 +254,11 @@ def plot_case_study_panel(
             linewidth=2.2,
             alpha=0.95,
         )
-    ax3d.scatter([pts[0, 0]], [pts[0, 1]], [pts[0, 2]], s=70, color="#2ec4b6", label="Start")
+    ax3d.scatter([pts[0, 0]], [pts[0, 1]], [pts[0, 2]], s=70, color="#2ec4b6", label="起点")
     ax3d.scatter([target[0]], [target[1]], [target[2]], s=110, marker="*", color="#ffbe0b",
-                 edgecolors="#111111", linewidths=0.5, label="Target")
-    ax3d.scatter([0], [0], [0], s=100, marker="^", color="#111111", label="Base")
-    ax3d.set_title(f"Representative target {target_id}", weight="bold")
+                 edgecolors="#111111", linewidths=0.5, label="目标点")
+    ax3d.scatter([0], [0], [0], s=100, marker="^", color="#111111", label="基座")
+    ax3d.set_title(f"代表性目标 {target_id}", weight="bold")
     ax3d.set_xlabel("X (m)")
     ax3d.set_ylabel("Y (m)")
     ax3d.set_zlabel("Z (m)")
@@ -240,18 +268,18 @@ def plot_case_study_panel(
     ax_tilt.plot(sim_time, sim_tilt, color="#8338ec", linewidth=2.0)
     ax_tilt.axhline(SAFE_LIMIT_DEG, color="#d7263d", linestyle="--", linewidth=1.4)
     ax_tilt.fill_between(sim_time, SAFE_LIMIT_DEG, SAFE_LIMIT_DEG + 5, color="#ffccd5", alpha=0.55)
-    ax_tilt.set_title("Cup tilt response", weight="bold")
-    ax_tilt.set_xlabel("Time (s)")
-    ax_tilt.set_ylabel("Tilt (deg)")
+    ax_tilt.set_title("杯体倾角响应", weight="bold")
+    ax_tilt.set_xlabel("时间 (s)")
+    ax_tilt.set_ylabel("倾角 (°)")
     ax_tilt.set_ylim(0, max(SAFE_LIMIT_DEG + 5, float(np.max(sim_tilt)) + 4))
     ax_tilt.grid(True, alpha=0.30)
 
     q_time = np.linspace(float(sim_time[0]), float(sim_time[-1]), len(qpos))
     for idx in range(qpos.shape[1]):
         ax_q.plot(q_time, qpos[:, idx], linewidth=1.2, label=f"q{idx + 1}")
-    ax_q.set_title("Planned joint trajectory", weight="bold")
-    ax_q.set_xlabel("Time (s)")
-    ax_q.set_ylabel("Joint angle (rad)")
+    ax_q.set_title("规划关节轨迹", weight="bold")
+    ax_q.set_xlabel("时间 (s)")
+    ax_q.set_ylabel("关节角 (rad)")
     ax_q.grid(True, alpha=0.30)
     ax_q.legend(ncol=3, frameon=False, fontsize=7)
     fig.tight_layout()
@@ -276,15 +304,15 @@ def plot_error_tilt_correlation(rows: List[Dict[str, object]], out_dir: Path) ->
         linewidths=0.35,
         alpha=0.92,
     )
-    ax.axvline(20, color="#d7263d", linestyle="--", linewidth=1.4, label="20 mm limit")
-    ax.axhline(SAFE_LIMIT_DEG, color="#d7263d", linestyle=":", linewidth=1.6, label="45 deg tilt limit")
-    ax.set_title("Tracking Error and Cup-Tilt Safety Margin", weight="bold")
-    ax.set_xlabel("Final position error (mm)")
-    ax.set_ylabel("Maximum cup tilt (deg)")
+    ax.axvline(20, color="#d7263d", linestyle="--", linewidth=1.4, label="20 mm阈值")
+    ax.axhline(SAFE_LIMIT_DEG, color="#d7263d", linestyle=":", linewidth=1.6, label="45°倾角阈值")
+    ax.set_title("跟踪误差与杯体倾角安全裕度", weight="bold")
+    ax.set_xlabel("末端最终误差 (mm)")
+    ax.set_ylabel("最大杯体倾角 (°)")
     ax.grid(True, alpha=0.30)
     ax.legend(frameon=True, framealpha=0.92)
     cbar = fig.colorbar(sc, ax=ax)
-    cbar.set_label("Executed path length (m)")
+    cbar.set_label("执行路径长度 (m)")
     save(fig, out_dir, "error_tilt_safety_margin")
     plt.close(fig)
 
@@ -306,7 +334,7 @@ def plot_success_metrics_dashboard(rows: List[Dict[str, object]], out_dir: Path)
     ax_tilt = fig.add_subplot(gs[0, 2])
 
     sizes = [success, tracking_failed, rejected]
-    labels = ["Success", "Tracking failed", "IK rejected"]
+    labels = ["成功", "跟踪失败", "IK拒绝"]
     colors = ["#2ec4b6", "#ff006e", "#8d99ae"]
     wedges, _ = ax_donut.pie(
         sizes,
@@ -315,23 +343,23 @@ def plot_success_metrics_dashboard(rows: List[Dict[str, object]], out_dir: Path)
         wedgeprops={"width": 0.42, "edgecolor": "white", "linewidth": 1.2},
     )
     ax_donut.text(0, 0.05, f"{success}/{total}", ha="center", va="center", fontsize=17, weight="bold")
-    ax_donut.text(0, -0.15, "successful", ha="center", va="center", fontsize=8)
-    ax_donut.set_title("Outcome", weight="bold")
+    ax_donut.text(0, -0.15, "成功目标", ha="center", va="center", fontsize=8)
+    ax_donut.set_title("任务结果", weight="bold")
     ax_donut.legend(wedges, labels, loc="lower center", bbox_to_anchor=(0.5, -0.18), frameon=False)
 
     violin = ax_err.violinplot(errors, showmeans=True, showmedians=True)
     _style_violin(violin, "#ffbe0b")
     ax_err.axhline(20, color="#d7263d", linestyle="--", linewidth=1.3)
-    ax_err.set_title("Final error distribution", weight="bold")
-    ax_err.set_ylabel("Error (mm)")
+    ax_err.set_title("最终误差分布", weight="bold")
+    ax_err.set_ylabel("误差 (mm)")
     ax_err.set_xticks([])
     ax_err.grid(axis="y", alpha=0.30)
 
     violin = ax_tilt.violinplot(tilts, showmeans=True, showmedians=True)
     _style_violin(violin, "#8338ec")
     ax_tilt.axhline(SAFE_LIMIT_DEG, color="#d7263d", linestyle="--", linewidth=1.3)
-    ax_tilt.set_title("Maximum tilt distribution", weight="bold")
-    ax_tilt.set_ylabel("Tilt (deg)")
+    ax_tilt.set_title("最大倾角分布", weight="bold")
+    ax_tilt.set_ylabel("倾角 (°)")
     ax_tilt.set_xticks([])
     ax_tilt.grid(axis="y", alpha=0.30)
     fig.tight_layout()
@@ -383,7 +411,7 @@ def plot_mujoco_snapshots(
         ax.set_title(f"{int(100 * frame_id / max(1, len(qpos) - 1))}%", weight="bold")
         ax.add_patch(Rectangle((0, 0), image.shape[1], image.shape[0], fill=False,
                                edgecolor="#111111", linewidth=1.2))
-    fig.suptitle(f"Rendered Transport Snapshots: target {target_id}", weight="bold", y=0.98)
+    fig.suptitle(f"持杯运输渲染快照：目标 {target_id}", weight="bold", y=0.98)
     fig.tight_layout()
     save(fig, out_dir, "rendered_transport_snapshots")
     plt.close(fig)

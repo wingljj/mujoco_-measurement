@@ -10,16 +10,38 @@ from typing import Dict, Iterable, List
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.collections import LineCollection
+from matplotlib import font_manager as fm
 
 
 FIG_DPI = 360
+CHINESE_FONT = fm.FontProperties(fname=r"C:\Windows\Fonts\simsun.ttc")
+LATIN_FONT = fm.FontProperties(fname=r"C:\Windows\Fonts\times.ttf")
+
+
+def _has_cjk(text: str) -> bool:
+    return any("\u4e00" <= char <= "\u9fff" for char in text)
+
+
+def apply_figure_fonts(fig: plt.Figure) -> None:
+    for text in fig.findobj(match=mpl.text.Text):
+        value = text.get_text()
+        if not value:
+            continue
+        text.set_fontproperties(CHINESE_FONT if _has_cjk(value) else LATIN_FONT)
+    for ax in fig.axes:
+        tick_labels = ax.get_xticklabels() + ax.get_yticklabels()
+        if hasattr(ax, "get_zticklabels"):
+            tick_labels += ax.get_zticklabels()
+        for tick in tick_labels:
+            value = tick.get_text()
+            tick.set_fontproperties(CHINESE_FONT if _has_cjk(value) else LATIN_FONT)
 
 
 def configure_style() -> None:
     mpl.rcParams.update(
         {
-            "font.family": "DejaVu Sans",
+            "font.family": "SimSun",
+            "font.sans-serif": ["SimSun"],
             "font.size": 10,
             "axes.labelsize": 10,
             "axes.titlesize": 11,
@@ -33,6 +55,11 @@ def configure_style() -> None:
             "savefig.dpi": FIG_DPI,
             "pdf.fonttype": 42,
             "ps.fonttype": 42,
+            "mathtext.fontset": "custom",
+            "mathtext.rm": "Times New Roman",
+            "mathtext.it": "Times New Roman:italic",
+            "mathtext.bf": "Times New Roman:bold",
+            "axes.unicode_minus": False,
         }
     )
 
@@ -91,6 +118,7 @@ def load_trajectories(path: Path) -> Dict[str, List[np.ndarray] | np.ndarray]:
 
 def save_figure(fig: plt.Figure, out_dir: Path, stem: str) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
+    apply_figure_fonts(fig)
     png = out_dir / f"{stem}.png"
     pdf = out_dir / f"{stem}.pdf"
     fig.savefig(png, bbox_inches="tight", facecolor=fig.get_facecolor())
@@ -108,7 +136,7 @@ def plot_workspace_success(rows: List[Dict[str, object]], out_dir: Path) -> None
 
     fig = plt.figure(figsize=(7.2, 5.8), facecolor="white")
     ax = fig.add_subplot(111, projection="3d")
-    ax.set_title("Reachable Workspace Success Map", pad=14, fontweight="bold")
+    ax.set_title("可达空间目标点成功分布", pad=14, fontweight="bold")
 
     if np.any(~success):
         ax.scatter(
@@ -119,7 +147,7 @@ def plot_workspace_success(rows: List[Dict[str, object]], out_dir: Path) -> None
             c="#d7263d",
             marker="x",
             linewidths=1.6,
-            label="Failed / rejected",
+            label="失败/拒绝",
             depthshade=False,
         )
     scatter = ax.scatter(
@@ -134,18 +162,18 @@ def plot_workspace_success(rows: List[Dict[str, object]], out_dir: Path) -> None
         marker="o",
         edgecolors="black",
         linewidths=0.35,
-        label="Cup-safe success",
+        label="防洒成功",
         depthshade=True,
     )
-    ax.scatter([0], [0], [0], s=130, c="#111111", marker="^", label="KR20 base")
-    ax.set_xlabel("X position (m)")
-    ax.set_ylabel("Y position (m)")
-    ax.set_zlabel("Z position (m)")
+    ax.scatter([0], [0], [0], s=130, c="#111111", marker="^", label="KR20 基座")
+    ax.set_xlabel("X 位置 (m)")
+    ax.set_ylabel("Y 位置 (m)")
+    ax.set_zlabel("Z 位置 (m)")
     ax.view_init(elev=24, azim=-54)
     ax.grid(True, alpha=0.32)
     ax.legend(loc="upper left", frameon=True, framealpha=0.92)
     cbar = fig.colorbar(scatter, ax=ax, shrink=0.72, pad=0.08)
-    cbar.set_label("Maximum cup tilt (deg)")
+    cbar.set_label("最大杯体倾角 (°)")
     save_figure(fig, out_dir, "workspace_success_map")
     plt.close(fig)
 
@@ -158,8 +186,8 @@ def plot_tilt_time_series(
     success_ids = [int(row["target_id"]) for row in rows if row["sim_success"]]
 
     fig, ax = plt.subplots(figsize=(7.2, 4.2), facecolor="white")
-    ax.axhspan(45, 55, color="#ffccd5", alpha=0.45, label="Unsafe region")
-    ax.axhline(45, color="#d7263d", linestyle="--", linewidth=1.6, label="45 deg limit")
+    ax.axhspan(45, 55, color="#ffccd5", alpha=0.45, label="不安全区域")
+    ax.axhline(45, color="#d7263d", linestyle="--", linewidth=1.6, label="45°阈值")
 
     if success_ids:
         max_tilts = np.array([rows[idx]["max_tilt_deg"] for idx in success_ids], dtype=float)
@@ -175,11 +203,11 @@ def plot_tilt_time_series(
         tilt = np.asarray(sim_tilt[target_id], dtype=float)
         if len(time) == 0:
             continue
-        ax.plot(time, tilt, color=color, alpha=0.95, label=f"Target {target_id}")
+        ax.plot(time, tilt, color=color, alpha=0.95, label=f"目标 {target_id}")
 
-    ax.set_title("Cup Tilt During Transport", fontweight="bold")
-    ax.set_xlabel("Simulation time (s)")
-    ax.set_ylabel("Cup tilt angle (deg)")
+    ax.set_title("持杯运输过程中的杯体倾角", fontweight="bold")
+    ax.set_xlabel("仿真时间 (s)")
+    ax.set_ylabel("杯体倾角 (°)")
     ax.set_ylim(0, max(50, _max_finite([row["max_tilt_deg"] for row in rows]) + 6))
     ax.grid(True, alpha=0.35)
     ax.legend(ncol=2, frameon=True, framealpha=0.92)
@@ -196,7 +224,7 @@ def plot_trajectory_3d_render(
 
     fig = plt.figure(figsize=(7.2, 5.8), facecolor="#f9fbff")
     ax = fig.add_subplot(111, projection="3d", facecolor="#f9fbff")
-    ax.set_title("Cup-Safe End-Effector Transport Trajectories", pad=14, fontweight="bold")
+    ax.set_title("防洒约束下的末端运输轨迹", pad=14, fontweight="bold")
 
     selected = success_ids[: min(12, len(success_ids))]
     cmap = mpl.colormaps["viridis"]
@@ -226,12 +254,12 @@ def plot_trajectory_3d_render(
             marker="*",
             edgecolors="#1f1f1f",
             linewidths=0.4,
-            label="Commanded targets",
+            label="指令目标点",
         )
-    ax.scatter([0], [0], [0], s=140, c="#191919", marker="^", label="KR20 base")
-    ax.set_xlabel("X position (m)")
-    ax.set_ylabel("Y position (m)")
-    ax.set_zlabel("Z position (m)")
+    ax.scatter([0], [0], [0], s=140, c="#191919", marker="^", label="KR20 基座")
+    ax.set_xlabel("X 位置 (m)")
+    ax.set_ylabel("Y 位置 (m)")
+    ax.set_zlabel("Z 位置 (m)")
     ax.view_init(elev=28, azim=-48)
     ax.grid(True, alpha=0.28)
     ax.legend(loc="upper left", frameon=True, framealpha=0.92)
@@ -253,26 +281,28 @@ def plot_performance_summary(rows: List[Dict[str, object]], out_dir: Path) -> No
     colors = ["#2ec4b6", "#ff006e", "#8338ec", "#fb5607"]
 
     ax0.bar(
-        ["Success", "Failure"],
+        ["成功", "失败"],
         [int(np.sum(success)), int(np.sum(~success))],
         color=[colors[0], "#d7263d"],
         edgecolor="#202020",
         linewidth=0.6,
     )
-    ax0.set_title("Task Outcome", fontweight="bold")
-    ax0.set_ylabel("Number of targets")
+    ax0.set_title("任务结果", fontweight="bold")
+    ax0.set_ylabel("目标点数量")
+    for label in ax0.get_xticklabels():
+        label.set_fontproperties(CHINESE_FONT)
     ax0.grid(axis="y", alpha=0.28)
 
-    _hist_with_stats(ax1, valid_errors * 1000.0, "Final error (mm)", colors[1])
-    ax1.axvline(20, color="#d7263d", linestyle="--", linewidth=1.4, label="20 mm limit")
+    _hist_with_stats(ax1, valid_errors * 1000.0, "末端最终误差 (mm)", colors[1])
+    ax1.axvline(20, color="#d7263d", linestyle="--", linewidth=1.4, label="20 mm 阈值")
     ax1.legend(frameon=True, framealpha=0.9)
 
-    _hist_with_stats(ax2, valid_tilts, "Maximum tilt (deg)", colors[2])
-    ax2.axvline(45, color="#d7263d", linestyle="--", linewidth=1.4, label="45 deg limit")
+    _hist_with_stats(ax2, valid_tilts, "最大倾角 (°)", colors[2])
+    ax2.axvline(45, color="#d7263d", linestyle="--", linewidth=1.4, label="45°阈值")
     ax2.legend(frameon=True, framealpha=0.9)
 
-    _hist_with_stats(ax3, valid_lengths, "Path length (m)", colors[3])
-    fig.suptitle("Cup-Safe Transport Performance Summary", fontweight="bold", y=1.01)
+    _hist_with_stats(ax3, valid_lengths, "路径长度 (m)", colors[3])
+    fig.suptitle("持杯防洒运输性能汇总", fontweight="bold", y=1.01)
     fig.tight_layout()
     save_figure(fig, out_dir, "performance_summary")
     plt.close(fig)
@@ -280,15 +310,15 @@ def plot_performance_summary(rows: List[Dict[str, object]], out_dir: Path) -> No
 
 def _hist_with_stats(ax: plt.Axes, values: np.ndarray, xlabel: str, color: str) -> None:
     if len(values) == 0:
-        ax.text(0.5, 0.5, "No valid samples", ha="center", va="center", transform=ax.transAxes)
+        ax.text(0.5, 0.5, "无有效样本", ha="center", va="center", transform=ax.transAxes)
         ax.set_xlabel(xlabel)
         return
     bins = min(12, max(4, len(values)))
     ax.hist(values, bins=bins, color=color, alpha=0.78, edgecolor="white", linewidth=0.8)
     mean = float(np.mean(values))
-    ax.axvline(mean, color="#111111", linestyle="-", linewidth=1.2, label=f"mean={mean:.2f}")
+    ax.axvline(mean, color="#111111", linestyle="-", linewidth=1.2, label=f"均值={mean:.2f}")
     ax.set_xlabel(xlabel)
-    ax.set_ylabel("Count")
+    ax.set_ylabel("数量")
     ax.grid(axis="y", alpha=0.28)
 
 
