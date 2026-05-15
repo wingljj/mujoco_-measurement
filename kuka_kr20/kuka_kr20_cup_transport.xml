@@ -1,0 +1,193 @@
+<mujoco model="kuka_kr20_cup_transport">
+
+    <compiler angle="radian" boundmass="0.001" boundinertia="0.001" meshdir="." />
+
+    <option integrator="implicitfast" timestep="0.001" solver="Newton" iterations="100" />
+
+    <visual>
+        <global offwidth="1280" offheight="960" />
+        <quality shadowsize="4096" offsamples="8" />
+        <map fogstart="3" fogend="7" znear="0.01" zfar="10" />
+        <rgba haze="0.86 0.90 0.96 1" />
+    </visual>
+
+    <asset>
+        <texture name="sky" type="skybox" builtin="gradient" rgb1="0.92 0.96 1.0"
+            rgb2="0.42 0.56 0.78" width="512" height="512" />
+        <texture name="floor_grid" type="2d" builtin="checker" rgb1="0.82 0.85 0.88"
+            rgb2="0.62 0.66 0.70" width="1024" height="1024" />
+        <material name="floor_mat" texture="floor_grid" texrepeat="8 8" reflectance="0.22"
+            rgba="1 1 1 1" />
+        <material name="kuka_black"
+            rgba="0.054901960784313725 0.054901960784313725 0.06274509803921569 1" />
+        <material name="kuka_orange"
+            rgba="0.9647058823529412 0.47058823529411764 0.1568627450980392 1" />
+        <material name="silver" rgba="0.70 0.70 0.70 1" />
+        <material name="glass" rgba="0.78 0.92 1.00 0.30" reflectance="0.35" />
+        <material name="water" rgba="0.06 0.52 0.95 0.56" reflectance="0.18" />
+        <material name="target" rgba="0.08 0.95 0.45 0.80" emission="0.25" />
+        <material name="safety_axis" rgba="0.05 0.20 1.00 1" emission="0.15" />
+
+        <mesh name="base_link" file="assets/base_link.stl" scale="0.001 0.001 0.001" />
+        <mesh name="link_1_1" file="assets/link_1_1.stl" scale="0.001 0.001 0.001" />
+        <mesh name="link_2_1" file="assets/link_2_1.stl" scale="0.001 0.001 0.001" />
+        <mesh name="link_3_1" file="assets/link_3_1.stl" scale="0.001 0.001 0.001" />
+        <mesh name="link_4_1" file="assets/link_4_1.stl" scale="0.001 0.001 0.001" />
+        <mesh name="link_5_1" file="assets/link_5_1.stl" scale="0.001 0.001 0.001" />
+        <mesh name="link_6_1" file="assets/link_6_1.stl" scale="0.001 0.001 0.001" />
+    </asset>
+
+    <worldbody>
+        <light name="key_light" pos="-1.8 -2.4 4.2" dir="0.45 0.55 -1" directional="true"
+            diffuse="0.95 0.94 0.90" specular="0.30 0.30 0.30" />
+        <light name="rim_light" pos="2.2 1.8 3.0" dir="-0.5 -0.3 -1" directional="true"
+            diffuse="0.32 0.46 0.72" specular="0.18 0.18 0.22" />
+        <camera name="paper_camera" pos="2.85 -2.75 2.35" xyaxes="0.68 0.73 0 -0.38 0.35 0.86"
+            fovy="34" />
+        <geom name="floor" type="plane" pos="0 0 0" size="3.0 3.0 0.02" material="floor_mat"
+            contype="1" conaffinity="1" />
+
+        <body name="target_marker" mocap="true" pos="1.05 0.00 1.15">
+            <geom name="target_marker_geom" type="sphere" size="0.045" material="target"
+                contype="0" conaffinity="0" />
+            <site name="target_site" type="sphere" size="0.018" rgba="0.02 1.00 0.38 1" />
+        </body>
+
+        <body name="base_link" pos="0 0 0">
+            <inertial pos="-0.02519167908195973 -0.0003512237430115979 0.14073533087089485"
+                mass="2.7534689254296694"
+                diaginertia="4.167631 5.193899 5.744846" />
+            <geom type="mesh" name="base_link_mesh" mesh="base_link" material="kuka_black"
+                contype="0" conaffinity="0" group="1" />
+
+            <body name="link_1_1" pos="0 0 0.274469">
+                <inertial pos="0.04262669771195508 0.022539294966451077 0.16742328594359268"
+                    mass="1.95025233840842"
+                    diaginertia="3.903396 4.254089 4.101512" />
+                <joint name="joint_1" axis="0 0 1" limited="true"
+                    range="-3.2288591161895095 3.2288591161895095" armature="0.03"
+                    damping="20" frictionloss="0.05" />
+                <geom type="mesh" name="link_1_1_mesh" pos="0 0 -0.274469" mesh="link_1_1"
+                    material="kuka_orange" contype="0" conaffinity="0" group="1" />
+
+                <body name="link_2_1" pos="0.16 -0.0948 0.245531">
+                    <inertial pos="-0.006708726638690016 -0.08230603603988629 0.35023181950025006"
+                        mass=".8242519331073362"
+                        diaginertia="4.984932 5.021308 0.256664" />
+                    <joint name="joint_2" axis="0 -1 0" limited="true"
+                        range="-3.2288591161895095 1.1344640137963142" armature="0.03"
+                        damping="24" frictionloss="0.05" />
+                    <geom type="mesh" name="link_2_1_mesh" pos="-0.16 0.0948 -0.52"
+                        mesh="link_2_1" material="kuka_orange" contype="0" conaffinity="0"
+                        group="1" />
+
+                    <body name="link_3_1" pos="0 -0.0203 0.78">
+                        <inertial pos="0.03856241201011176 0.11370205937926676 0.07616220977557053"
+                            mass="1.1562183723958658"
+                            diaginertia="1.475083 2.199261 2.25828" />
+                        <joint name="joint_3" axis="0 1 0" limited="true"
+                            range="-2.4085543677521746 3.0543261909900763" armature="0.03"
+                            damping="22" frictionloss="0.05" />
+                        <geom type="mesh" name="link_3_1_mesh" pos="-0.16 0.1151 -1.3"
+                            mesh="link_3_1" material="kuka_orange" contype="0" conaffinity="0"
+                            group="1" />
+
+                        <body name="link_4_1" pos="0.3 0.1151 0.15">
+                            <inertial
+                                pos="0.2794641231700052 0.005705547665961539 -1.1441231588804612e-06"
+                                mass=".47719118331815324"
+                                diaginertia="0.089286 1.63285 1.644056" />
+                            <joint name="joint_4" axis="1 0 0" limited="true"
+                                range="-6.108652381980153 6.108652381980153" armature="0.015"
+                                damping="8" frictionloss="0.02" />
+                            <geom type="mesh" name="link_4_1_mesh" pos="-0.46 0 -1.45"
+                                mesh="link_4_1" material="kuka_orange" contype="0"
+                                conaffinity="0" group="1" />
+
+                            <body name="link_5_1" pos="0.56 0.0923 0">
+                                <inertial
+                                    pos="0.05739426005238135 -0.10605062717888086 -4.807006906970557e-06"
+                                    mass=".10353274319603718"
+                                    diaginertia="0.043336 0.032453 0.064603" />
+                                <joint name="joint_5" axis="0 1 0" limited="true"
+                                    range="-2.2689280275926285 2.2689280275926285"
+                                    armature="0.015" damping="8" frictionloss="0.02" />
+                                <geom type="mesh" name="link_5_1_mesh" pos="-1.02 -0.0923 -1.45"
+                                    mesh="link_5_1" material="kuka_orange" contype="0"
+                                    conaffinity="0" group="1" />
+
+                                <body name="link_6_1" pos="0.139 -0.0923 0">
+                                    <inertial
+                                        pos="0.008129076502710442 -2.0340839963698945e-14 8.253251104872739e-05"
+                                        mass="0.0020169644458108382"
+                                        diaginertia="0.000104 5.5e-05 5.4e-05" />
+                                    <joint name="joint_6" axis="1 0 0" limited="true"
+                                        range="-6.108652381980153 6.108652381980153"
+                                        armature="0.01" damping="6" frictionloss="0.01" />
+                                    <geom type="mesh" name="link_6_1_mesh" pos="-1.159 0 -1.45"
+                                        mesh="link_6_1" material="silver" contype="0"
+                                        conaffinity="0" group="1" />
+
+                                    <site name="ee_site" pos="0.20 0 0.10" size="0.018"
+                                        rgba="1.0 0.95 0.05 1" />
+                                    <body name="cup_body" pos="0.20 0 0.10">
+                                        <site name="cup_axis_base_site" pos="0 0 -0.10"
+                                            size="0.010" rgba="0.05 0.20 1.00 1" />
+                                        <site name="cup_axis_tip_site" pos="0 0 0.14"
+                                            size="0.014" rgba="0.05 0.20 1.00 1" />
+                                        <geom name="cup_glass" type="cylinder" size="0.055 0.12"
+                                            material="glass" mass="0.05" contype="0"
+                                            conaffinity="0" />
+                                        <geom name="water_column" type="cylinder" pos="0 0 -0.025"
+                                            size="0.049 0.075" material="water" mass="0.20"
+                                            contype="0" conaffinity="0" />
+                                        <geom name="water_surface" type="cylinder" pos="0 0 0.052"
+                                            size="0.050 0.002" rgba="0.45 0.86 1.00 0.72"
+                                            contype="0" conaffinity="0" />
+                                        <geom name="cup_axis_visual" type="capsule"
+                                            fromto="0 0 -0.10 0 0 0.14" size="0.004"
+                                            material="safety_axis" contype="0" conaffinity="0" />
+                                        <geom name="handle_upper" type="capsule"
+                                            fromto="0 0.052 0.060 0 0.087 0.060" size="0.006"
+                                            material="glass" contype="0" conaffinity="0" />
+                                        <geom name="handle_outer" type="capsule"
+                                            fromto="0 0.087 0.060 0 0.087 -0.055" size="0.006"
+                                            material="glass" contype="0" conaffinity="0" />
+                                        <geom name="handle_lower" type="capsule"
+                                            fromto="0 0.087 -0.055 0 0.052 -0.055" size="0.006"
+                                            material="glass" contype="0" conaffinity="0" />
+                                    </body>
+                                </body>
+                            </body>
+                        </body>
+                    </body>
+                </body>
+            </body>
+        </body>
+    </worldbody>
+
+    <actuator>
+        <position name="joint_1_position" joint="joint_1" kp="1800" ctrllimited="true"
+            ctrlrange="-3.2288591161895095 3.2288591161895095" />
+        <position name="joint_2_position" joint="joint_2" kp="2600" ctrllimited="true"
+            ctrlrange="-3.2288591161895095 1.1344640137963142" />
+        <position name="joint_3_position" joint="joint_3" kp="2400" ctrllimited="true"
+            ctrlrange="-2.4085543677521746 3.0543261909900763" />
+        <position name="joint_4_position" joint="joint_4" kp="1200" ctrllimited="true"
+            ctrlrange="-6.108652381980153 6.108652381980153" />
+        <position name="joint_5_position" joint="joint_5" kp="1200" ctrllimited="true"
+            ctrlrange="-2.2689280275926285 2.2689280275926285" />
+        <position name="joint_6_position" joint="joint_6" kp="900" ctrllimited="true"
+            ctrlrange="-6.108652381980153 6.108652381980153" />
+    </actuator>
+
+    <contact>
+        <exclude body1="base_link" body2="link_1_1" />
+        <exclude body1="link_1_1" body2="link_2_1" />
+        <exclude body1="link_2_1" body2="link_3_1" />
+        <exclude body1="link_3_1" body2="link_4_1" />
+        <exclude body1="link_4_1" body2="link_5_1" />
+        <exclude body1="link_5_1" body2="link_6_1" />
+    </contact>
+
+</mujoco>
