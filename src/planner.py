@@ -45,16 +45,20 @@ class CupSafePlanner:
         kin: KukaCupKinematics,
         tilt_limit_deg: float = 45.0,
         position_tolerance: float = 0.02,
+        position_weight: float = 7.5,
         tilt_weight: float = 0.90,
         continuity_weight: float = 0.08,
         limit_weight: float = 0.025,
+        tilt_barrier_weight: float = 18.0,
     ) -> None:
         self.kin = kin
         self.tilt_limit_deg = float(tilt_limit_deg)
         self.position_tolerance = float(position_tolerance)
+        self.position_weight = float(position_weight)
         self.tilt_weight = float(tilt_weight)
         self.continuity_weight = float(continuity_weight)
         self.limit_weight = float(limit_weight)
+        self.tilt_barrier_weight = float(tilt_barrier_weight)
         self._tilt_limit_rad = np.radians(self.tilt_limit_deg)
 
     def solve_ik(
@@ -71,14 +75,14 @@ class CupSafePlanner:
 
         def residual(qpos: np.ndarray) -> np.ndarray:
             state = self.kin.state(qpos)
-            position_residual = 7.5 * (state.ee_pos - target_array)
+            position_residual = self.position_weight * (state.ee_pos - target_array)
             vertical_residual = self.tilt_weight * np.cross(state.cup_axis, WORLD_Z)
             continuity_residual = self.continuity_weight * (qpos - seed)
             limit_residual = self.limit_weight * self.kin.normalized_limit_distance(qpos)
 
             tilt_rad = np.radians(state.tilt_deg)
             excess = max(0.0, tilt_rad - self._tilt_limit_rad)
-            tilt_barrier = np.array([18.0 * excess], dtype=float)
+            tilt_barrier = np.array([self.tilt_barrier_weight * excess], dtype=float)
 
             return np.concatenate(
                 [

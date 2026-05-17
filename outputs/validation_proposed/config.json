@@ -1,0 +1,11 @@
+{
+  "model": "kuka_kr20\\kuka_kr20_cup_transport.xml",
+  "targets": 8,
+  "seed": 7,
+  "method": "proposed",
+  "tilt_limit_deg": 45.0,
+  "position_tolerance": 0.02,
+  "plan_steps": 45,
+  "sim_substeps": 30,
+  "settle_steps": 2000
+}

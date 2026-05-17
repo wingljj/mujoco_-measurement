@@ -13,10 +13,10 @@ import mujoco
 import numpy as np
 
 try:
-    from .kinematics import KukaCupKinematics
+    from .kinematics import KukaCupKinematics, smoothstep
     from .planner import CupSafePlanner, TrajectoryPlan, path_length
 except ImportError:  # pragma: no cover - supports direct script execution
-    from kinematics import KukaCupKinematics
+    from kinematics import KukaCupKinematics, smoothstep
     from planner import CupSafePlanner, TrajectoryPlan, path_length
 
 
@@ -25,6 +25,7 @@ class SimulationConfig:
     model: str
     targets: int
     seed: int
+    method: str
     tilt_limit_deg: float
     position_tolerance: float
     plan_steps: int
@@ -52,6 +53,132 @@ def sample_targets(rng: np.random.Generator, count: int) -> np.ndarray:
     if len(targets) < count:
         raise RuntimeError(f"Only sampled {len(targets)} targets after {attempts} attempts")
     return np.asarray(targets, dtype=float)
+
+
+def make_planner(method: str, kin: KukaCupKinematics, config: SimulationConfig) -> CupSafePlanner:
+    """Create the proposed planner or a baseline planner for comparison."""
+
+    if method == "proposed":
+        return CupSafePlanner(
+            kin,
+            tilt_limit_deg=config.tilt_limit_deg,
+            position_tolerance=config.position_tolerance,
+            position_weight=7.5,
+            tilt_weight=0.90,
+            continuity_weight=0.08,
+            limit_weight=0.025,
+            tilt_barrier_weight=18.0,
+        )
+    if method in {"position_only", "joint_linear"}:
+        return CupSafePlanner(
+            kin,
+            # Baselines are allowed to solve the position task first; safety is
+            # evaluated later with the experiment tilt limit.
+            tilt_limit_deg=180.0,
+            position_tolerance=config.position_tolerance,
+            position_weight=7.5,
+            tilt_weight=0.0,
+            continuity_weight=0.0,
+            limit_weight=0.005,
+            tilt_barrier_weight=0.0,
+        )
+    raise ValueError(f"Unknown planning method: {method}")
+
+
+def plan_with_method(
+    method: str,
+    planner: CupSafePlanner,
+    kin: KukaCupKinematics,
+    target: Iterable[float],
+    start_qpos: Iterable[float],
+    steps: int,
+) -> TrajectoryPlan:
+    if method in {"proposed", "position_only"}:
+        return planner.plan_to_target(target, start_qpos=start_qpos, steps=steps)
+    if method == "joint_linear":
+        return plan_joint_linear(planner, kin, target, start_qpos, steps)
+    raise ValueError(f"Unknown planning method: {method}")
+
+
+def plan_joint_linear(
+    planner: CupSafePlanner,
+    kin: KukaCupKinematics,
+    target: Iterable[float],
+    start_qpos: Iterable[float],
+    steps: int,
+) -> TrajectoryPlan:
+    """Traditional baseline: solve one target IK and interpolate in joint space."""
+
+    target_array = np.asarray(target, dtype=float)
+    start_array = kin.clip(np.asarray(start_qpos, dtype=float))
+    ik = planner.solve_ik(target_array, seed_qpos=start_array, max_nfev=200)
+    if not ik.success:
+        return TrajectoryPlan(
+            success=False,
+            qpos=np.asarray([start_array], dtype=float),
+            ee_pos=np.asarray([kin.state(start_array).ee_pos], dtype=float),
+            tilt_deg=np.asarray([kin.state(start_array).tilt_deg], dtype=float),
+            target=target_array,
+            final_error=float(ik.position_error),
+            max_tilt_deg=float(ik.tilt_deg),
+            message=f"target IK failed: err={ik.position_error:.4f} m",
+        )
+
+    alphas = smoothstep(np.linspace(0.0, 1.0, int(steps)))
+    qpos = np.asarray([(1.0 - alpha) * start_array + alpha * ik.qpos for alpha in alphas])
+    states = [kin.state(q) for q in qpos]
+    ee_pos = np.asarray([state.ee_pos for state in states], dtype=float)
+    tilt_deg = np.asarray([state.tilt_deg for state in states], dtype=float)
+    final_error = float(np.linalg.norm(ee_pos[-1] - target_array))
+    max_tilt = float(np.max(tilt_deg))
+    return TrajectoryPlan(
+        success=final_error <= planner.position_tolerance,
+        qpos=qpos,
+        ee_pos=ee_pos,
+        tilt_deg=tilt_deg,
+        target=target_array,
+        final_error=final_error,
+        max_tilt_deg=max_tilt,
+        message="ok" if final_error <= planner.position_tolerance else "joint interpolation failed",
+    )
+
+
+def smoothness_metrics(qpos: np.ndarray, dt: float) -> Dict[str, float]:
+    """Return joint-space smoothness metrics for a planned trajectory."""
+
+    q = np.asarray(qpos, dtype=float)
+    if q.ndim != 2 or len(q) < 2:
+        return {
+            "joint_path_length_rad": float("nan"),
+            "mean_joint_step_rad": float("nan"),
+            "max_joint_step_rad": float("nan"),
+            "rms_joint_speed_rad_s": float("nan"),
+            "max_joint_speed_rad_s": float("nan"),
+            "rms_joint_accel_rad_s2": float("nan"),
+            "max_joint_accel_rad_s2": float("nan"),
+        }
+    dt = max(float(dt), 1e-9)
+    dq = np.diff(q, axis=0)
+    step_norm = np.linalg.norm(dq, axis=1)
+    speed = dq / dt
+    speed_norm = np.linalg.norm(speed, axis=1)
+    if len(speed) >= 2:
+        accel = np.diff(speed, axis=0) / dt
+        accel_norm = np.linalg.norm(accel, axis=1)
+        rms_accel = float(np.sqrt(np.mean(accel_norm**2)))
+        max_accel = float(np.max(accel_norm))
+    else:
+        rms_accel = float("nan")
+        max_accel = float("nan")
+    return {
+        "joint_path_length_rad": float(np.sum(step_norm)),
+        "mean_joint_step_rad": float(np.mean(step_norm)),
+        "max_joint_step_rad": float(np.max(step_norm)),
+        "rms_joint_speed_rad_s": float(np.sqrt(np.mean(speed_norm**2))),
+        "max_joint_speed_rad_s": float(np.max(speed_norm)),
+        "rms_joint_accel_rad_s2": rms_accel,
+        "max_joint_accel_rad_s2": max_accel,
+    }
 
 
 def _set_target_marker(model: mujoco.MjModel, data: mujoco.MjData, target: np.ndarray) -> None:
@@ -182,6 +309,7 @@ def _append_state(
 def _write_results_csv(rows: List[Dict[str, object]], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
+        "method",
         "target_id",
         "target_x",
         "target_y",
@@ -194,6 +322,13 @@ def _write_results_csv(rows: List[Dict[str, object]], path: Path) -> None:
         "max_tilt_deg",
         "planned_max_tilt_deg",
         "path_length_m",
+        "joint_path_length_rad",
+        "mean_joint_step_rad",
+        "max_joint_step_rad",
+        "rms_joint_speed_rad_s",
+        "max_joint_speed_rad_s",
+        "rms_joint_accel_rad_s2",
+        "max_joint_accel_rad_s2",
         "message",
     ]
     with path.open("w", newline="", encoding="utf-8") as handle:
@@ -232,6 +367,7 @@ def run_experiment(args: argparse.Namespace) -> None:
         model=str(model_path),
         targets=int(args.targets),
         seed=int(args.seed),
+        method=str(args.method),
         tilt_limit_deg=float(args.tilt_limit_deg),
         position_tolerance=float(args.position_tolerance),
         plan_steps=int(args.plan_steps),
@@ -240,13 +376,10 @@ def run_experiment(args: argparse.Namespace) -> None:
     )
 
     kin = KukaCupKinematics(model_path)
-    planner = CupSafePlanner(
-        kin,
-        tilt_limit_deg=config.tilt_limit_deg,
-        position_tolerance=config.position_tolerance,
-    )
+    planner = make_planner(config.method, kin, config)
     rng = np.random.default_rng(config.seed)
     targets = sample_targets(rng, config.targets)
+    command_dt = float(kin.model.opt.timestep) * config.sim_substeps
 
     rows: List[Dict[str, object]] = []
     planned_qpos: List[np.ndarray] = []
@@ -257,7 +390,8 @@ def run_experiment(args: argparse.Namespace) -> None:
     start_qpos = kin.default_qpos()
 
     for target_id, target in enumerate(targets):
-        plan = planner.plan_to_target(target, start_qpos=start_qpos, steps=config.plan_steps)
+        plan = plan_with_method(config.method, planner, kin, target, start_qpos, config.plan_steps)
+        smoothness = smoothness_metrics(plan.qpos, command_dt)
         planned_qpos.append(plan.qpos)
         planned_ee.append(plan.ee_pos)
 
@@ -288,6 +422,7 @@ def run_experiment(args: argparse.Namespace) -> None:
 
         rows.append(
             {
+                "method": config.method,
                 "target_id": target_id,
                 "target_x": float(target[0]),
                 "target_y": float(target[1]),
@@ -300,16 +435,18 @@ def run_experiment(args: argparse.Namespace) -> None:
                 "max_tilt_deg": max_tilt,
                 "planned_max_tilt_deg": float(plan.max_tilt_deg),
                 "path_length_m": sim_path_length,
+                **smoothness,
                 "message": plan.message,
             }
         )
 
-        status = "ok" if sim_success else "failed"
-        print(
-            f"[{target_id + 1:03d}/{config.targets:03d}] {status} "
-            f"target=({target[0]:.3f}, {target[1]:.3f}, {target[2]:.3f}) "
-            f"err={final_error:.4f} tilt={max_tilt:.2f}"
-        )
+        if not args.quiet:
+            status = "ok" if sim_success else "failed"
+            print(
+                f"[{config.method} {target_id + 1:03d}/{config.targets:03d}] {status} "
+                f"target=({target[0]:.3f}, {target[1]:.3f}, {target[2]:.3f}) "
+                f"err={final_error:.4f} tilt={max_tilt:.2f}"
+            )
 
     _write_results_csv(rows, out_dir / "results.csv")
     _save_trajectories(
@@ -332,6 +469,7 @@ def run_experiment(args: argparse.Namespace) -> None:
     success_rate = 100.0 * succeeded / reachable if reachable else 0.0
     print(
         f"Saved {out_dir / 'results.csv'} and {out_dir / 'trajectories.npz'}; "
+        f"method={config.method}, "
         f"planned reachable={reachable}/{len(rows)}, "
         f"tracking failures={tracking_failed}, "
         f"simulated success={succeeded}/{reachable} reachable targets "
@@ -349,11 +487,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--targets", type=int, default=100, help="Number of target samples.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     parser.add_argument("--out", default="outputs/experiment_001", help="Output directory.")
+    parser.add_argument(
+        "--method",
+        choices=["proposed", "position_only", "joint_linear"],
+        default="proposed",
+        help="Planning method used for paper comparison experiments.",
+    )
     parser.add_argument("--tilt-limit-deg", type=float, default=45.0)
     parser.add_argument("--position-tolerance", type=float, default=0.02)
     parser.add_argument("--plan-steps", type=int, default=45)
     parser.add_argument("--sim-substeps", type=int, default=30)
     parser.add_argument("--settle-steps", type=int, default=2000)
+    parser.add_argument("--quiet", action="store_true", help="Suppress per-target progress lines.")
     return parser
 
 
