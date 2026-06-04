@@ -1,0 +1,5 @@
+variant,total_targets,ik_reachable,ik_reachability_pct,sim_success,sim_success_of_reachable_pct,sim_success_of_total_pct,mean_final_error_m,max_final_error_m,mean_max_tilt_deg,max_max_tilt_deg,mean_plan_time_s,mean_plan_nfev
+full_method,150,148,98.66666666666667,0,0.0,0.0,nan,nan,nan,nan,0.2586925146670546,176.86
+no_tilt_barrier,150,148,98.66666666666667,0,0.0,0.0,nan,nan,nan,nan,0.2353990586672444,176.86666666666667
+position_only,150,45,30.0,0,0.0,0.0,nan,nan,nan,nan,0.366470284666478,632.3466666666667
+position_orientation,150,150,100.0,0,0.0,0.0,nan,nan,nan,nan,0.16012443333350043,165.62
