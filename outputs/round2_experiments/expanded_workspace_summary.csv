@@ -1,0 +1,6 @@
+region,total,plan_ok,sim_ok,plan_rate_pct,sim_rate_pct
+far_reach,16,16,16,100.0,100.0
+high_reach,16,16,16,100.0,100.0
+low_reach,16,16,16,100.0,100.0
+standard,16,16,15,100.0,93.75
+wide_azimuth,16,16,16,100.0,100.0

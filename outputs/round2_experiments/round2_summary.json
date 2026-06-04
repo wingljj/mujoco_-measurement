@@ -1,0 +1,44 @@
+{
+  "expanded": [
+    {
+      "region": "far_reach",
+      "total": 16,
+      "plan_ok": 16,
+      "sim_ok": 16,
+      "plan_rate_pct": 100.0,
+      "sim_rate_pct": 100.0
+    },
+    {
+      "region": "high_reach",
+      "total": 16,
+      "plan_ok": 16,
+      "sim_ok": 16,
+      "plan_rate_pct": 100.0,
+      "sim_rate_pct": 100.0
+    },
+    {
+      "region": "low_reach",
+      "total": 16,
+      "plan_ok": 16,
+      "sim_ok": 16,
+      "plan_rate_pct": 100.0,
+      "sim_rate_pct": 100.0
+    },
+    {
+      "region": "standard",
+      "total": 16,
+      "plan_ok": 16,
+      "sim_ok": 15,
+      "plan_rate_pct": 100.0,
+      "sim_rate_pct": 93.75
+    },
+    {
+      "region": "wide_azimuth",
+      "total": 16,
+      "plan_ok": 16,
+      "sim_ok": 16,
+      "plan_rate_pct": 100.0,
+      "sim_rate_pct": 100.0
+    }
+  ]
+}
