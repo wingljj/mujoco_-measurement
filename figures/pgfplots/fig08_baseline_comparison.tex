@@ -1,0 +1,87 @@
+\documentclass[tikz,border=0pt]{standalone}
+\usepackage{jmechplots}
+\usepackage{xstring}
+
+\pgfplotstableread[col sep=comma]{data/fig08_baselines.csv}\BaselineData
+
+\pgfplotstablecreatecol[
+  create col/assign/.code={%
+    \edef\RowMethod{\thisrow{method_cn}}%
+    \expandafter\IfStrEq\expandafter{\RowMethod}{本文方法}
+      {\def\SelectorCode{1}}{\def\SelectorCode{2}}%
+    \pgfkeyslet{/pgfplots/table/create col/next content}\SelectorCode
+  }
+]{method_code}\BaselineData
+
+\pgfplotstablecreatecol[
+  create col/assign/.code={%
+    \edef\RowMethod{\thisrow{method_cn}}%
+    \edef\RowSuccess{\thisrow{sim_success}}%
+    \def\SelectorCode{0}%
+    \expandafter\IfStrEq\expandafter{\RowSuccess}{False}{%
+      \expandafter\IfStrEq\expandafter{\RowMethod}{本文方法}
+        {\def\SelectorCode{1}}{\def\SelectorCode{2}}%
+    }{}%
+    \pgfkeyslet{/pgfplots/table/create col/next content}\SelectorCode
+  }
+]{failure_code}\BaselineData
+
+\begin{document}
+\begin{tikzpicture}[every node/.style={font=\fontsize{8}{9.6}\selectfont}]
+  \path[use as bounding box] (0,0) rectangle (8,6);
+  \begin{axis}[
+    jmech/base,
+    at={(1.12cm,1.00cm)},anchor=south west,
+    scale only axis,width=6.25cm,height=4.15cm,
+    xmin=0,xmax=36,ymin=0,ymax=31,
+    xtick={0,5,10,15,20,25,30,35},
+    ytick={0,5,10,15,20,25,30},
+    xlabel={最终位置误差 / mm},
+    ylabel={最大经纬仪倾角 / $^{\circ}$},
+    unbounded coords=discard,
+    legend columns=2,
+    legend style={at={(0.02,0.98)},anchor=north west,
+      column sep=7pt,cells={anchor=west}},
+    clip=false
+  ]
+    \addplot+[only marks,color=JBlue,mark=o,mark size=1.75pt,
+      mark options={draw=JBlue,fill=none,line width=0.55pt},
+      opacity=0.56,
+      restrict expr to domain={\thisrow{method_code}}{1:1}]
+      table[x=error_mm,y=tilt_deg]{\BaselineData};
+    \addlegendentry{本文方法}
+
+    \addplot+[only marks,color=JRed,mark=triangle,mark size=2.05pt,
+      mark options={draw=JRed,fill=none,line width=0.55pt},
+      opacity=0.52,
+      restrict expr to domain={\thisrow{method_code}}{2:2}]
+      table[x=error_mm,y=tilt_deg]{\BaselineData};
+    \addlegendentry{优先级IK}
+
+    \addplot+[jmech/threshold]
+      coordinates {(20,0) (20,31)};
+    \addplot+[jmech/threshold]
+      coordinates {(0,10) (36,10)};
+
+    \addplot+[only marks,color=black,mark=x,mark size=2.35pt,
+      mark options={line width=0.75pt},
+      restrict expr to domain={\thisrow{failure_code}}{1:1}]
+      table[x=error_mm,y=tilt_deg]{\BaselineData};
+    \addplot+[only marks,color=black,mark=x,mark size=2.35pt,
+      mark options={line width=0.75pt},
+      restrict expr to domain={\thisrow{failure_code}}{2:2}]
+      table[x=error_mm,y=tilt_deg]{\BaselineData};
+
+    \node[anchor=north west,text=JGray,fill=white,fill opacity=0.86,
+      text opacity=1,inner sep=1.2pt,align=left]
+      at (axis cs:23.0,30.3) {本文任务判定\\20 mm};
+    \node[anchor=east,text=JGray,fill=white,fill opacity=0.86,
+      text opacity=1,inner sep=1.2pt,align=right]
+      at (axis cs:35.0,16.7) {本文保守运输阈值\\（研究设定）10$^{\circ}$};
+    \node[anchor=south,font=\fontsize{8}{9.6}\selectfont,
+      fill=white,inner sep=1pt,align=center]
+      at (rel axis cs:0.5,1.025)
+      {有限仿真记录：本文方法148，优先级IK150\\$\times$ 表示失败记录};
+  \end{axis}
+\end{tikzpicture}
+\end{document}
