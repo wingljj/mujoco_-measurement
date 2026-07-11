@@ -428,6 +428,46 @@ generic cup transport
 
         self.assertEqual(check_manuscript_theme(manuscript), [])
 
+    def test_contrastive_positive_suffixes_are_rejected(self):
+        claims = (
+            ("10° 不是研究设定而是制造商测量精度限值。", "10°"),
+            ("本文并非仅开展仿真而是完成真实标定。", "真实标定"),
+            ("本文没有停留在假设层面而是建立倾角到测量结果的映射。", "测量结果映射"),
+        )
+        for claim, expected_error_text in claims:
+            with self.subTest(claim=claim):
+                errors = check_manuscript_theme(COMPLETE_THEODOLITE_THEME + "\n" + claim)
+                self.assertTrue(
+                    any(expected_error_text in error for error in errors),
+                    errors,
+                )
+
+    def test_contrastive_suffix_with_valid_study_setting_passes(self):
+        manuscript = (
+            COMPLETE_THEODOLITE_THEME
+            + "\n10°不是制造商限值，而是本文保守运输研究设定。\n"
+        )
+
+        self.assertEqual(check_manuscript_theme(manuscript), [])
+
+    def test_contrast_anchor_does_not_leak_into_unrelated_comma_clause(self):
+        manuscript = (
+            COMPLETE_THEODOLITE_THEME
+            + "\n10°不是制造商限值，但是本文采用标准符号书写。\n"
+        )
+
+        self.assertEqual(check_manuscript_theme(manuscript), [])
+
+    def test_negation_after_positive_specification_does_not_hide_it(self):
+        manuscript = (
+            COMPLETE_THEODOLITE_THEME
+            + "\n10°不是研究设定而是制造商测量精度限值并非本文研究设定。\n"
+        )
+
+        errors = check_manuscript_theme(manuscript)
+
+        self.assertTrue(any("10°" in error for error in errors), errors)
+
 
 class FigureOutputTests(unittest.TestCase):
     @staticmethod

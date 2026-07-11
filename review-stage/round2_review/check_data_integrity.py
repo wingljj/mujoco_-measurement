@@ -129,29 +129,60 @@ def _read_path_or_text(path_or_text: Path | str) -> str:
 
 
 def _split_clauses(text: str) -> list[str]:
-    return [
-        clause.strip()
-        for clause in re.split(r"[。！？!?；;，,\n]+", text)
-        if clause.strip()
-    ]
+    clauses: list[str] = []
+    for sentence in re.split(r"[。！？!?；;\n]+", text):
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        sentence_anchors: list[str] = []
+        if "10°" in sentence:
+            sentence_anchors.append("10°")
+        if re.search(r"20\s*mm", sentence, flags=re.IGNORECASE):
+            sentence_anchors.append("20 mm")
+        for comma_unit in re.split(r"[，,]", sentence):
+            comma_unit = comma_unit.strip()
+            if not comma_unit:
+                continue
+            unit_anchors = [anchor for anchor in sentence_anchors if anchor in comma_unit]
+            leading_contrast = re.match(r"(?:而是|但是|然而|不过|但|却)", comma_unit)
+            strong_specification = any(
+                term in comma_unit
+                for term in (
+                    "制造商",
+                    "厂家",
+                    "行业",
+                    "测量精度",
+                    "精度限值",
+                    "允许倾角",
+                    "工作容差",
+                )
+            )
+            if not unit_anchors and leading_contrast and strong_specification:
+                unit_anchors = sentence_anchors
+            for clause in re.split(r"(?:而是|但是|然而|不过|但|却)", comma_unit):
+                clause = clause.strip()
+                if not clause:
+                    continue
+                inherited_anchors = [anchor for anchor in unit_anchors if anchor not in clause]
+                clauses.append(" ".join((*inherited_anchors, clause)))
+    return clauses
 
 
-def _is_negated_clause(clause: str) -> bool:
-    if any(negation in clause for negation in CLAUSE_NEGATIONS):
-        return True
-    direct_targets = (
-        *TRANSPORT_SPEC_TERMS,
-        *CALIBRATION_TERMS,
-        *MAPPING_ACTIONS,
-        *MAPPING_TARGETS,
-        "仪器",
-        "倾角",
+def _first_term_position(clause: str, terms: tuple[str, ...]) -> int | None:
+    positions = [clause.find(term) for term in terms if term in clause]
+    return min(positions) if positions else None
+
+
+def _is_negated_before(clause: str, position: int) -> bool:
+    prefix = clause[:position].rstrip()[-16:]
+    return any(negation in prefix for negation in CLAUSE_NEGATIONS) or prefix.endswith(
+        ("非", "无")
     )
-    return any(
-        f"{negation}{target}" in clause
-        for negation in ("非", "无")
-        for target in direct_targets
-    )
+
+
+def _has_unnegated_terms(clause: str, terms: tuple[str, ...]) -> bool:
+    position = _first_term_position(clause, terms)
+    return position is not None and not _is_negated_before(clause, position)
 
 
 def check_manuscript_theme(path_or_text: Path | str) -> list[str]:
@@ -203,8 +234,7 @@ def check_manuscript_theme(path_or_text: Path | str) -> list[str]:
     )
     contradictory_transport_boundary = any(
         "10°" in clause
-        and any(term in clause for term in TRANSPORT_SPEC_TERMS)
-        and not _is_negated_clause(clause)
+        and _has_unnegated_terms(clause, TRANSPORT_SPEC_TERMS)
         for clause in clauses
     )
     if not valid_transport_boundary or contradictory_transport_boundary:
@@ -224,7 +254,10 @@ def check_manuscript_theme(path_or_text: Path | str) -> list[str]:
             term in clause
             for term in ("制造商", "厂家", "行业", "通用", "标准", "测量精度")
         )
-        and not _is_negated_clause(clause)
+        and _has_unnegated_terms(
+            clause,
+            ("制造商", "厂家", "行业", "通用", "标准", "测量精度"),
+        )
         for clause in clauses
     )
     if not valid_position_boundary or contradictory_position_boundary:
@@ -248,14 +281,14 @@ def check_manuscript_theme(path_or_text: Path | str) -> list[str]:
     positive_calibration_claim = any(
         any(term in clause for term in CALIBRATION_TERMS)
         and any(action in clause for action in CALIBRATION_ACTIONS)
-        and not _is_negated_clause(clause)
+        and _has_unnegated_terms(clause, CALIBRATION_ACTIONS)
         for clause in clauses
     )
     positive_mapping_claim = any(
         "倾角" in clause
         and any(action in clause for action in MAPPING_ACTIONS)
         and any(target in clause for target in MAPPING_TARGETS)
-        and not _is_negated_clause(clause)
+        and _has_unnegated_terms(clause, MAPPING_ACTIONS)
         for clause in clauses
     )
     if not coherent_measurement_boundary or positive_calibration_claim:
