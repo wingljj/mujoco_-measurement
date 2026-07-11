@@ -32,9 +32,67 @@ FIGURE_BASENAMES = (
     "fig07_dynamic_metrics",
     "fig08_baseline_comparison",
 )
+COMPLETE_THEODOLITE_THEME = """# 经纬仪测站转移
+本文研究刚性负载代理仿真。
+仪器在机械臂到达目标位姿并稳定后测量。
+10° 是本文研究设定的保守运输姿态报告阈值，不代表任何具体仪器的工作容差。
+20 mm 是本目标集的任务特定位置判据。
+本文未执行真实标定，也未建立运输倾角到测量结果的映射。
+历史复现路径为 kuka_kr20/kuka_kr20_cup_transport.xml。
+"""
 
 
 class DataIntegrityParserTests(unittest.TestCase):
+    @staticmethod
+    def _create_full_root(root: Path) -> None:
+        manuscript_path = root / "docs" / "theory_and_simulation.md"
+        csv_path = root / "outputs" / "ablation_study" / "ablation_summary.csv"
+        manuscript_path.parent.mkdir(parents=True)
+        csv_path.parent.mkdir(parents=True)
+        manuscript_path.write_text(
+            COMPLETE_THEODOLITE_THEME
+            + """
+| 变体 | IK 规划 | 仿真成功 | 成功率 | 结论 |
+|---|---|---|---|---|
+| 完整方法 | 148/150 | 147/150 | 98.0% | 基线 |
+| 无倾角屏障 | 148/150 | 147/150 | 98.0% | 同分 |
+| 纯位置 | 45/150 | 45/150 | 30.0% | 可达率下降 |
+| 位置+姿态 | 150/150 | 144/150 | 96.0% | 少量失败 |
+""",
+            encoding="utf-8",
+        )
+        csv_path.write_text(
+            "variant,sim_success_of_total_pct\n"
+            "full_method,98.0\n"
+            "no_tilt_barrier,98.0\n"
+            "position_only,30.0\n"
+            "position_orientation,96.0\n",
+            encoding="utf-8",
+        )
+        FigureOutputTests._create_outputs(root)
+
+    @staticmethod
+    def _run_cli(root: Path, *arguments: str) -> subprocess.CompletedProcess[bytes]:
+        repository_root = Path(__file__).resolve().parents[1]
+        return subprocess.run(
+            [
+                sys.executable,
+                str(
+                    repository_root
+                    / "review-stage"
+                    / "round2_review"
+                    / "check_data_integrity.py"
+                ),
+                "--root",
+                str(root),
+                *arguments,
+            ],
+            cwd=repository_root,
+            capture_output=True,
+            text=False,
+            check=False,
+        )
+
     def test_parse_paper_rates_reads_four_default_ablation_rows(self):
         manuscript = """
 ### 4.2 结果
@@ -79,6 +137,46 @@ class DataIntegrityParserTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr.decode("gbk", errors="replace"))
 
+    def test_strict_full_cli_passes_complete_root_and_fails_missing_pair(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self._create_full_root(root)
+
+            complete = self._run_cli(root, "--strict")
+            self.assertEqual(complete.returncode, 0, complete.stdout.decode("utf-8"))
+
+            missing = root / "figures" / "pgfplots" / "build" / "fig08_baseline_comparison.pdf"
+            missing.unlink()
+            incomplete = self._run_cli(root, "--strict")
+            output = incomplete.stdout.decode("utf-8")
+            self.assertEqual(incomplete.returncode, 1, output)
+            self.assertIn("fig08_baseline_comparison.pdf", output)
+
+    def test_strict_cli_rejects_rate_difference_allowed_by_default(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self._create_full_root(root)
+            csv_path = root / "outputs" / "ablation_study" / "ablation_summary.csv"
+            csv_path.write_text(
+                csv_path.read_text(encoding="utf-8").replace(
+                    "full_method,98.0", "full_method,98.5"
+                ),
+                encoding="utf-8",
+            )
+
+            tolerant = self._run_cli(root, "--rates-only")
+            strict = self._run_cli(root, "--strict", "--rates-only")
+
+            self.assertEqual(tolerant.returncode, 0, tolerant.stdout.decode("utf-8"))
+            self.assertEqual(strict.returncode, 1, strict.stdout.decode("utf-8"))
+
+    def test_cli_help_distinguishes_full_and_rates_only_modes(self):
+        help_text = check_data_integrity.build_parser().format_help()
+
+        self.assertIn("full rates, manuscript-theme, and figure-output checks", help_text)
+        self.assertIn("explicit diagnostic bypass", help_text)
+        self.assertIn("--root", help_text)
+
 
 class ManuscriptThemeTests(unittest.TestCase):
     def test_old_theme_terms_are_reported_with_line_numbers(self):
@@ -89,8 +187,10 @@ class ManuscriptThemeTests(unittest.TestCase):
 倾洒风险
 液体晃动
 容器运输
-历史复现文件 kuka_kr20_cup_transport.xml
-到达目标位姿并稳定后测量，采用 10° 保守运输阈值。
+历史复现文件 kuka_kr20/kuka_kr20_cup_transport.xml
+到达目标位姿并稳定后测量。
+10° 是本文研究设定的保守运输姿态报告阈值，不代表具体仪器的工作容差。
+20 mm 是任务特定位置判据。
 本文未执行真实标定，也未建立运输倾角到测量结果的映射。
 """
 
@@ -106,19 +206,13 @@ class ManuscriptThemeTests(unittest.TestCase):
         self.assertFalse(any("cup" in error for error in errors), errors)
 
     def test_complete_theodolite_fixture_passes(self):
-        manuscript = """# 经纬仪测站转移
-本文研究刚性负载代理仿真。
-仪器在机械臂到达目标位姿并稳定后测量。
-10° 是本文的保守运输姿态报告阈值。
-本文未执行真实标定，也未建立运输倾角到测量结果的映射。
-"""
-
-        self.assertEqual(check_manuscript_theme(manuscript), [])
+        self.assertEqual(check_manuscript_theme(COMPLETE_THEODOLITE_THEME), [])
 
     def test_path_input_is_supported(self):
         manuscript = """本文采用刚性负载代理。
 仪器到达目标位姿并稳定后才开始测量。
-10° 是保守运输阈值。
+10° 是本文研究设定的保守运输阈值，不代表仪器工作容差。
+20 mm 是任务特定位置判据。
 本文不包含真实标定，也没有运输倾角到测量结果的映射。
 """
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -150,6 +244,109 @@ class ManuscriptThemeTests(unittest.TestCase):
 
         self.assertTrue(any("真实标定" in error for error in errors), errors)
         self.assertTrue(any("测量结果映射" in error for error in errors), errors)
+
+    def test_threshold_claims_must_be_coherent_and_task_specific(self):
+        manuscript = """本文研究刚性负载代理仿真。
+仪器到达目标位姿并稳定后才开始测量。
+10° 是制造商规定的测量精度阈值。
+本文另有保守运输研究设定。
+20 mm 是通用工程测量精度标准。
+本文未执行真实标定，也未建立倾角到测量结果的映射。
+"""
+
+        errors = check_manuscript_theme(manuscript)
+
+        self.assertTrue(any("10°" in error for error in errors), errors)
+        self.assertTrue(any("20 mm" in error for error in errors), errors)
+
+    def test_later_instrument_threshold_claim_overrides_valid_boundary(self):
+        manuscript = COMPLETE_THEODOLITE_THEME + "\n制造商规定 10° 为测量精度阈值。\n"
+
+        errors = check_manuscript_theme(manuscript)
+
+        self.assertTrue(any("10°" in error for error in errors), errors)
+
+    def test_later_positive_calibration_and_mapping_claims_are_rejected(self):
+        manuscript = (
+            COMPLETE_THEODOLITE_THEME
+            + "\n项目随后完成了真实标定，并建立了倾角到测量误差映射。\n"
+        )
+
+        errors = check_manuscript_theme(manuscript)
+
+        self.assertTrue(any("真实标定" in error for error in errors), errors)
+        self.assertTrue(any("测量结果映射" in error for error in errors), errors)
+
+    def test_broader_legacy_terms_and_nonhistorical_cup_are_line_numbered(self):
+        manuscript = COMPLETE_THEODOLITE_THEME + """
+液体代理
+独立晃动分析
+sloshing benchmark
+generic cup transport
+"""
+
+        errors = check_manuscript_theme(manuscript)
+
+        for line_number, term in ((9, "液体"), (10, "晃动"), (11, "sloshing"), (12, "cup")):
+            self.assertTrue(
+                any(term in error.lower() and f"第 {line_number} 行" in error for error in errors),
+                errors,
+            )
+        self.assertFalse(
+            any("第 7 行" in error and "cup" in error.lower() for error in errors),
+            errors,
+        )
+
+    def test_historical_cup_path_must_be_an_exact_token(self):
+        manuscript = (
+            COMPLETE_THEODOLITE_THEME
+            + "\nprefixkuka_kr20/kuka_kr20_cup_transport.xmlsuffix\n"
+        )
+
+        errors = check_manuscript_theme(manuscript)
+
+        self.assertTrue(
+            any("第 9 行" in error and "cup" in error.lower() for error in errors),
+            errors,
+        )
+
+    def test_additional_threshold_contradictions_are_rejected(self):
+        contradictory_claims = (
+            ("10° 被某制造商用作测量精度。", "10°"),
+            ("10° 源自行业测量精度要求。", "10°"),
+            ("厂家规定 20 mm 为通用测量精度标准。", "20 mm"),
+        )
+        for claim, expected_error_text in contradictory_claims:
+            with self.subTest(claim=claim):
+                errors = check_manuscript_theme(COMPLETE_THEODOLITE_THEME + "\n" + claim)
+                self.assertTrue(
+                    any(expected_error_text in error for error in errors),
+                    errors,
+                )
+
+    def test_explicitly_negated_manufacturer_and_industry_boundaries_pass(self):
+        manuscript = COMPLETE_THEODOLITE_THEME.replace(
+            "10° 是本文研究设定的保守运输姿态报告阈值，不代表任何具体仪器的工作容差。",
+            "10° 是本文研究设定的保守运输姿态报告阈值，并非制造商指标，也不是仪器测量精度标准。",
+        ).replace(
+            "20 mm 是本目标集的任务特定位置判据。",
+            "20 mm 是任务特定位置判据，不代表行业测量精度标准。",
+        )
+
+        self.assertEqual(check_manuscript_theme(manuscript), [])
+
+    def test_additional_positive_calibration_and_mapping_claims_are_rejected(self):
+        positive_claims = (
+            ("随后完成了现场校准。", "真实标定"),
+            ("随后实现了运输倾角与测量结果之间的映射。", "测量结果映射"),
+        )
+        for claim, expected_error_text in positive_claims:
+            with self.subTest(claim=claim):
+                errors = check_manuscript_theme(COMPLETE_THEODOLITE_THEME + "\n" + claim)
+                self.assertTrue(
+                    any(expected_error_text in error for error in errors),
+                    errors,
+                )
 
 
 class FigureOutputTests(unittest.TestCase):
@@ -211,6 +408,77 @@ class FigureOutputTests(unittest.TestCase):
             self.assertTrue(any("fig09_legacy.png" in error for error in errors), errors)
             self.assertTrue(any("fig09_legacy.pdf" in error for error in errors), errors)
             self.assertTrue(all("意外" in error for error in errors), errors)
+
+    def test_all_unexpected_image_outputs_are_reported_regardless_of_prefix(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self._create_outputs(root)
+            png_directory = root / "outputs" / "word_figures"
+            pdf_directory = root / "figures" / "pgfplots" / "build"
+            (png_directory / "legacy_cup_plot.png").write_bytes(b"png")
+            (pdf_directory / "legacy_cup_plot.pdf").write_bytes(b"pdf")
+            (png_directory / "README.txt").write_text("metadata", encoding="utf-8")
+
+            errors = check_figure_outputs(root)
+
+            self.assertEqual(len(errors), 2, errors)
+            self.assertTrue(any("legacy_cup_plot.png" in error for error in errors), errors)
+            self.assertTrue(any("legacy_cup_plot.pdf" in error for error in errors), errors)
+
+    def test_non_file_collision_is_distinct_from_empty_file(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self._create_outputs(root)
+            collision = (
+                root
+                / "figures"
+                / "pgfplots"
+                / "build"
+                / "fig06_error_tilt_margin.pdf"
+            )
+            collision.unlink()
+            collision.mkdir()
+
+            errors = check_figure_outputs(root)
+
+            matching = [error for error in errors if collision.name in error]
+            self.assertEqual(len(matching), 1, errors)
+            self.assertIn("不是普通文件", matching[0])
+            self.assertNotIn("空文件", matching[0])
+
+    def test_image_outputs_in_wrong_managed_directory_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self._create_outputs(root)
+            word_directory = root / "outputs" / "word_figures"
+            build_directory = root / "figures" / "pgfplots" / "build"
+            (word_directory / "legacy_vector.pdf").write_bytes(b"pdf")
+            (build_directory / "legacy_preview.png").write_bytes(b"png")
+
+            errors = check_figure_outputs(root)
+
+            self.assertEqual(len(errors), 2, errors)
+            self.assertTrue(any("legacy_vector.pdf" in error for error in errors), errors)
+            self.assertTrue(any("legacy_preview.png" in error for error in errors), errors)
+
+
+class WordFigureGuideTests(unittest.TestCase):
+    def test_png_is_primary_word_picture_and_pdf_is_vector_master(self):
+        guide_path = (
+            Path(__file__).resolve().parents[1]
+            / "review-stage"
+            / "round2_review"
+            / "WORD_FIGURE_GUIDE.md"
+        )
+        guide = guide_path.read_text(encoding="utf-8")
+
+        self.assertIn("600 DPI PNG 是 Word 插入的可靠主资产", guide)
+        self.assertIn("插入 → 图片 → 此设备", guide)
+        self.assertIn("选择对应 PNG", guide)
+        self.assertIn("矢量主文件", guide)
+        self.assertIn("插入 → 对象", guide)
+        self.assertNotIn("优先选择对应 PDF", guide)
+        self.assertNotIn("优先使用 `figures/pgfplots/build/` 中的矢量 PDF", guide)
 
 
 if __name__ == "__main__":

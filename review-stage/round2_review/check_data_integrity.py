@@ -1,4 +1,9 @@
-"""Check that the manuscript's default ablation rates match the source CSV."""
+"""Validate manuscript rates, theme boundaries, and exact managed figure outputs.
+
+The default mode and ``--strict`` run the full rates, manuscript-theme, and
+figure-output checks. ``--rates-only`` is an explicit diagnostic bypass for
+early-stage rate verification.
+"""
 
 from __future__ import annotations
 
@@ -18,7 +23,18 @@ VARIANT_NAMES = {
     "纯位置": "position_only",
     "位置+姿态": "position_orientation",
 }
-LEGACY_THEME_TERMS = ("持杯", "杯体", "防洒", "倾洒", "液体晃动", "容器运输")
+LEGACY_THEME_TERMS = (
+    "持杯",
+    "杯体",
+    "防洒",
+    "倾洒",
+    "液体晃动",
+    "容器运输",
+    "液体",
+    "晃动",
+    "sloshing",
+)
+ALLOWED_HISTORICAL_CUP_PATH = "kuka_kr20/kuka_kr20_cup_transport.xml"
 RIGID_PROXY_PHRASES = ("刚性负载代理", "刚性负载代理仿真")
 STABLE_MEASUREMENT_PHRASES = (
     "到达目标位姿并稳定后测量",
@@ -103,9 +119,18 @@ def check_manuscript_theme(path_or_text: Path | str) -> list[str]:
     errors: list[str] = []
 
     for line_number, line in enumerate(manuscript.splitlines(), start=1):
+        lower_line = line.lower()
         for term in LEGACY_THEME_TERMS:
-            if term in line:
+            if term.lower() in lower_line:
                 errors.append(f"第 {line_number} 行包含旧主题词‘{term}’。")
+        cup_check_line = re.sub(
+            rf"(?<![a-z0-9_./-]){re.escape(ALLOWED_HISTORICAL_CUP_PATH)}"
+            r"(?![a-z0-9_./-])",
+            "",
+            lower_line,
+        )
+        if re.search(r"(?<![a-z])cup(?![a-z])", cup_check_line):
+            errors.append(f"第 {line_number} 行包含旧主题词‘cup’。")
 
     proxy_contradiction = re.search(
         r"(?:真实|实物)[^。；\n]{0,20}刚性负载代理(?:实验|试验)"
@@ -119,26 +144,105 @@ def check_manuscript_theme(path_or_text: Path | str) -> list[str]:
         errors.append("正文缺少无矛盾的‘刚性负载代理仿真’研究对象说明。")
     if not any(phrase in manuscript for phrase in STABLE_MEASUREMENT_PHRASES):
         errors.append("正文缺少‘到达目标位姿并稳定后测量’的时序边界。")
-    if "10°" not in manuscript:
-        errors.append("正文缺少 10° 报告阈值。")
-    if "保守运输" not in manuscript:
-        errors.append("正文缺少‘保守运输’阈值定性。")
+    statements = [
+        statement.strip()
+        for statement in re.split(r"(?<=[。！？!?])|\n+", manuscript)
+        if statement.strip()
+    ]
+    valid_transport_boundary = any(
+        "10°" in statement
+        and "保守运输" in statement
+        and ("研究设定" in statement or "报告阈值" in statement)
+        and re.search(
+            r"(?:不代表|不是|并非)[^。；\n]{0,40}(?:仪器|性能规范|工作容差)",
+            statement,
+        )
+        for statement in statements
+    )
+    contradictory_transport_boundary = any(
+        "10°" in statement
+        and (
+            re.search(
+                r"(?:制造商|厂家)[^。；\n]{0,12}(?:规定|要求)"
+                r"[^。；\n]{0,12}10°",
+                statement,
+            )
+            or re.search(
+                r"10°\s*(?:是|为|作为)[^。；\n]{0,12}"
+                r"(?:制造商|厂家|行业)[^。；\n]{0,10}"
+                r"(?:阈值|指标|标准|容差|要求)",
+                statement,
+            )
+            or re.search(
+                r"10°(?:\s*(?:是|为|作为|源自)|[^。；\n]{0,12}用作)"
+                r"[^。；\n]{0,20}测量精度",
+                statement,
+            )
+        )
+        for statement in statements
+    )
+    if not valid_transport_boundary or contradictory_transport_boundary:
+        errors.append(
+            "正文缺少无矛盾的 10° 保守运输研究设定及非仪器容差边界。"
+        )
 
-    calibration_boundary = re.search(
+    valid_position_boundary = any(
+        re.search(r"20\s*mm", statement, flags=re.IGNORECASE)
+        and "任务特定" in statement
+        and "位置判据" in statement
+        for statement in statements
+    )
+    contradictory_position_boundary = any(
+        re.search(r"20\s*mm", statement, flags=re.IGNORECASE)
+        and (
+            re.search(
+                r"(?:制造商|厂家|行业)[^。；\n]{0,12}(?:规定|要求)"
+                r"[^。；\n]{0,12}20\s*mm",
+                statement,
+                flags=re.IGNORECASE,
+            )
+            or re.search(
+                r"20\s*mm\s*(?:是|为|作为)\s*"
+                r"(?:通用|行业|制造商|厂家|测量精度)",
+                statement,
+                flags=re.IGNORECASE,
+            )
+        )
+        for statement in statements
+    )
+    if not valid_position_boundary or contradictory_position_boundary:
+        errors.append("正文缺少‘20 mm 为任务特定位置判据’的边界。")
+
+    calibration_pattern = re.compile(
         r"(?:未执行|未进行|未包含|未采用|未做|没有执行|没有进行|"
         r"没有包含|没有采用|不包含)[^。；\n]{0,50}(?:真实|实物)?"
-        r"[^。；\n]{0,10}标定",
-        manuscript,
+        r"[^。；\n]{0,10}标定"
     )
-    measurement_mapping_boundary = re.search(
+    measurement_mapping_pattern = re.compile(
         r"(?:未建立|未包含|没有建立|没有包含|不包含)[^。；\n]{0,100}"
         r"(?:测量结果[^。；\n]{0,30}(?:映射|误差模型)|测量映射|"
-        r"倾角[^。；\n]{0,50}(?:映射|误差模型))",
+        r"倾角[^。；\n]{0,50}(?:映射|误差模型))"
+    )
+    coherent_measurement_boundary = any(
+        calibration_pattern.search(statement)
+        and measurement_mapping_pattern.search(statement)
+        for statement in statements
+    )
+    positive_calibration_claim = re.search(
+        r"(?:完成了|进行了|开展了|执行了|已完成|已进行|已经完成|已经进行|"
+        r"采用了)[^。；\n]{0,20}(?:(?:真实|实物|现场)[^。；\n]{0,6})?"
+        r"(?:标定|校准)",
         manuscript,
     )
-    if calibration_boundary is None:
+    positive_mapping_claim = re.search(
+        r"(?:建立了|已建立|已经建立|完成了|实现了|已实现)[^。；\n]{0,80}"
+        r"(?:测量误差映射|测量结果映射|倾角[^。；\n]{0,50}"
+        r"(?:测量误差|测量结果)[^。；\n]{0,20}(?:映射|模型))",
+        manuscript,
+    )
+    if not coherent_measurement_boundary or positive_calibration_claim is not None:
         errors.append("正文缺少‘未做真实标定’的研究边界。")
-    if measurement_mapping_boundary is None:
+    if not coherent_measurement_boundary or positive_mapping_claim is not None:
         errors.append("正文缺少‘未建立运输倾角到测量结果映射’的研究边界。")
 
     return errors
@@ -147,37 +251,58 @@ def check_manuscript_theme(path_or_text: Path | str) -> list[str]:
 def check_figure_outputs(root: Path) -> list[str]:
     """Return errors for missing or empty managed Word PNG and vector PDF files."""
     errors: list[str] = []
-    expected_basenames = set(FIGURE_BASENAMES)
     output_locations = (
         (root / "outputs" / "word_figures", ".png"),
         (root / "figures" / "pgfplots" / "build", ".pdf"),
     )
+    expected_paths = {
+        directory / f"{basename}{suffix}"
+        for directory, suffix in output_locations
+        for basename in FIGURE_BASENAMES
+    }
     for basename in FIGURE_BASENAMES:
         for directory, suffix in output_locations:
             path = directory / f"{basename}{suffix}"
             relative_path = path.relative_to(root)
             if not path.exists():
                 errors.append(f"缺少图件输出：{relative_path}")
-            elif not path.is_file() or path.stat().st_size == 0:
+            elif not path.is_file():
+                errors.append(f"图件输出不是普通文件：{relative_path}")
+            elif path.stat().st_size == 0:
                 errors.append(f"图件输出为空文件：{relative_path}")
-    for directory, suffix in output_locations:
-        for path in directory.glob(f"fig*{suffix}"):
-            if path.stem not in expected_basenames:
+    for directory, _suffix in output_locations:
+        if not directory.is_dir():
+            continue
+        for path in directory.iterdir():
+            if path.suffix.lower() in {".png", ".pdf"} and path not in expected_paths:
                 errors.append(f"意外图件输出：{path.relative_to(root)}")
     return errors
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description="Default: full rates, manuscript-theme, and figure-output checks."
+    )
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="Require exact equality instead of allowing a 1 percentage-point tolerance.",
+        help=(
+            "Require exact rate equality instead of a 1 percentage-point tolerance; "
+            "all full checks still run unless --rates-only is set."
+        ),
     )
     parser.add_argument(
         "--rates-only",
         action="store_true",
-        help="Check manuscript/CSV rates only; skip manuscript-theme and figure-output checks.",
+        help=(
+            "Run rates only (explicit diagnostic bypass); skip theme and "
+            "figure-output checks."
+        ),
+    )
+    parser.add_argument(
+        "--root",
+        type=Path,
+        help="Repository root to check (default: inferred from this script).",
     )
     return parser
 
@@ -193,7 +318,7 @@ def _configure_utf8_output() -> None:
 def main(argv: list[str] | None = None) -> int:
     _configure_utf8_output()
     args = build_parser().parse_args(argv)
-    root = Path(__file__).resolve().parents[2]
+    root = args.root.resolve() if args.root is not None else Path(__file__).resolve().parents[2]
     manuscript_path = root / "docs" / "theory_and_simulation.md"
     csv_path = root / "outputs" / "ablation_study" / "ablation_summary.csv"
     tolerance = 0.0 if args.strict else 1.0
