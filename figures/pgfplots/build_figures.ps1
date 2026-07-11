@@ -114,16 +114,10 @@ function Reset-StagingDirectory {
     New-Item -ItemType Directory -Force -Path $StagingDirectory | Out-Null
 }
 
-function Publish-StagedFigures {
+function Publish-StagedArtifacts {
     param(
         [Parameter(Mandatory)]
-        [string[]]$Basenames,
-
-        [Parameter(Mandatory)]
-        [string]$StagingDirectory,
-
-        [Parameter(Mandatory)]
-        [string]$OutputDirectory,
+        [object[]]$Artifacts,
 
         [Parameter(Mandatory)]
         [string]$BackupDirectory,
@@ -132,21 +126,22 @@ function Publish-StagedFigures {
         [scriptblock]$ReplaceAction
     )
 
-    New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
     $publicationToken = [guid]::NewGuid().ToString('N')
     $pendingFiles = @()
     $destinationRecords = @()
 
     try {
-        foreach ($basename in $Basenames) {
-            $finalPath = Join-Path $OutputDirectory "${basename}.png"
+        foreach ($artifact in $Artifacts) {
+            $finalPath = $artifact.FinalPath
+            $outputDirectory = Split-Path -Parent $finalPath
+            New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
             if ((Test-Path -LiteralPath $finalPath) -and
                 -not (Test-Path -LiteralPath $finalPath -PathType Leaf)) {
                 throw "Managed publication destination is not a file: $finalPath"
             }
 
             $destinationExisted = Test-Path -LiteralPath $finalPath -PathType Leaf
-            $backupPath = Join-Path $BackupDirectory "${basename}.png"
+            $backupPath = Join-Path $BackupDirectory $artifact.BackupName
             if ($destinationExisted) {
                 Copy-Item -LiteralPath $finalPath -Destination $backupPath -Force
             }
@@ -156,9 +151,8 @@ function Publish-StagedFigures {
                 BackupPath = $backupPath
             }
 
-            $sourcePath = Join-Path $StagingDirectory "${basename}.png"
-            $temporaryPath = Join-Path $OutputDirectory ".${basename}.${publicationToken}.tmp.png"
-            Copy-Item -LiteralPath $sourcePath -Destination $temporaryPath -Force
+            $temporaryPath = Join-Path $outputDirectory ".$($artifact.Name).${publicationToken}.tmp$($artifact.Extension)"
+            Copy-Item -LiteralPath $artifact.SourcePath -Destination $temporaryPath -Force
             $pendingFiles += [pscustomobject]@{
                 TemporaryPath = $temporaryPath
                 FinalPath = $finalPath
@@ -218,13 +212,16 @@ function Invoke-AtomicFigureBatch {
         [string[]]$Basenames,
 
         [Parameter(Mandatory)]
-        [string]$StagingDirectory,
+        [string]$BuildWorkDirectory,
 
         [Parameter(Mandatory)]
-        [string]$StagingParentDirectory,
+        [string]$BuildParentDirectory,
 
         [Parameter(Mandatory)]
-        [string]$OutputDirectory,
+        [string]$PdfOutputDirectory,
+
+        [Parameter(Mandatory)]
+        [string]$PngOutputDirectory,
 
         [Parameter(Mandatory)]
         [scriptblock]$BuildAction,
@@ -233,43 +230,64 @@ function Invoke-AtomicFigureBatch {
         [scriptblock]$ReplaceAction
     )
 
-    $backupDirectory = Join-Path $StagingParentDirectory 'word-publication-backup'
+    $backupDirectory = Join-Path $BuildParentDirectory 'publication-backup'
     try {
         Reset-StagingDirectory `
-            -StagingDirectory $StagingDirectory `
-            -ExpectedParentDirectory $StagingParentDirectory
+            -StagingDirectory $BuildWorkDirectory `
+            -ExpectedParentDirectory $BuildParentDirectory
         Reset-StagingDirectory `
             -StagingDirectory $backupDirectory `
-            -ExpectedParentDirectory $StagingParentDirectory
+            -ExpectedParentDirectory $BuildParentDirectory
 
         foreach ($basename in $Basenames) {
-            & $BuildAction $basename $StagingDirectory
+            & $BuildAction $basename $BuildWorkDirectory
         }
 
+        $artifacts = @()
         foreach ($basename in $Basenames) {
-            $stagedPngPath = Join-Path $StagingDirectory "${basename}.png"
+            $stagedPdfPath = Join-Path $BuildWorkDirectory "${basename}.pdf"
+            $stagedPngPath = Join-Path $BuildWorkDirectory "${basename}.png"
+            if (-not (Test-Path -LiteralPath $stagedPdfPath -PathType Leaf)) {
+                throw "Batch did not produce current staged PDF: $stagedPdfPath"
+            }
             if (-not (Test-Path -LiteralPath $stagedPngPath -PathType Leaf)) {
                 throw "Batch did not produce current staged PNG: $stagedPngPath"
             }
+
+            $artifacts += [pscustomobject]@{
+                Name = $basename
+                Extension = '.pdf'
+                SourcePath = $stagedPdfPath
+                FinalPath = Join-Path $PdfOutputDirectory "${basename}.pdf"
+                BackupName = "pdf-${basename}.pdf"
+            }
         }
 
-        Publish-StagedFigures `
-            -Basenames $Basenames `
-            -StagingDirectory $StagingDirectory `
-            -OutputDirectory $OutputDirectory `
+        foreach ($basename in $Basenames) {
+            $artifacts += [pscustomobject]@{
+                Name = $basename
+                Extension = '.png'
+                SourcePath = Join-Path $BuildWorkDirectory "${basename}.png"
+                FinalPath = Join-Path $PngOutputDirectory "${basename}.png"
+                BackupName = "png-${basename}.png"
+            }
+        }
+
+        Publish-StagedArtifacts `
+            -Artifacts $artifacts `
             -BackupDirectory $backupDirectory `
             -ReplaceAction $ReplaceAction
     }
     finally {
         try {
             Remove-SafeChildDirectory `
-                -Directory $StagingDirectory `
-                -ExpectedParentDirectory $StagingParentDirectory
+                -Directory $BuildWorkDirectory `
+                -ExpectedParentDirectory $BuildParentDirectory
         }
         finally {
             Remove-SafeChildDirectory `
                 -Directory $backupDirectory `
-                -ExpectedParentDirectory $StagingParentDirectory
+                -ExpectedParentDirectory $BuildParentDirectory
         }
     }
 }
@@ -282,7 +300,7 @@ function Invoke-FigureBuild {
     $repoRoot = Get-RepositoryRoot
     $figureDir = Join-Path $repoRoot 'figures\pgfplots'
     $buildDir = Join-Path $figureDir 'build'
-    $stagingDir = Join-Path $buildDir 'word-staging'
+    $buildWorkDir = Join-Path $buildDir 'build-work'
     $wordOutputDir = Join-Path $repoRoot 'outputs\word_figures'
 
     New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
@@ -303,16 +321,20 @@ function Invoke-FigureBuild {
     try {
         Invoke-AtomicFigureBatch `
             -Basenames @(Get-FigureBasenames) `
-            -StagingDirectory $stagingDir `
-            -StagingParentDirectory $buildDir `
-            -OutputDirectory $wordOutputDir `
+            -BuildWorkDirectory $buildWorkDir `
+            -BuildParentDirectory $buildDir `
+            -PdfOutputDirectory $buildDir `
+            -PngOutputDirectory $wordOutputDir `
             -BuildAction {
-                param($basename, $batchStagingDirectory)
+                param($basename, $batchWorkDirectory)
 
                 $texPath = Join-Path $figureDir "${basename}.tex"
-                $pdfPath = Join-Path $buildDir "${basename}.pdf"
-                $pngPrefix = Join-Path $batchStagingDirectory $basename
+                $pdfPath = Join-Path $batchWorkDirectory "${basename}.pdf"
+                $pngPrefix = Join-Path $batchWorkDirectory $basename
                 $pngPath = "${pngPrefix}.png"
+                $nativeWorkDirectory = ConvertTo-NativeRelativeChildPath `
+                    -Path $batchWorkDirectory `
+                    -BaseDirectory $figureDir
                 $nativePdfPath = ConvertTo-NativeRelativeChildPath `
                     -Path $pdfPath `
                     -BaseDirectory $figureDir
@@ -324,24 +346,23 @@ function Invoke-FigureBuild {
                     throw "Missing figure source: $texPath"
                 }
 
-                Remove-Item -LiteralPath $pdfPath, $pngPath -Force -ErrorAction SilentlyContinue
                 Invoke-NativeCommand -Command 'latexmk' -Arguments @(
                     '-xelatex',
                     '-interaction=nonstopmode',
                     '-halt-on-error',
                     '-file-line-error',
-                    "-outdir=$buildDir",
-                    $texPath
+                    "-outdir=$nativeWorkDirectory",
+                    "${basename}.tex"
                 )
                 if (-not (Test-Path -LiteralPath $pdfPath -PathType Leaf)) {
                     throw "latexmk completed without producing: $pdfPath"
                 }
 
-                Invoke-NativeCommand -Command 'pdfinfo' -Arguments @($pdfPath)
+                Invoke-NativeCommand -Command 'pdfinfo' -Arguments @($nativePdfPath)
 
-                $fontReport = (& pdffonts $pdfPath 2>&1 | Out-String)
+                $fontReport = (& pdffonts $nativePdfPath 2>&1 | Out-String)
                 if ($LASTEXITCODE -ne 0) {
-                    throw "pdffonts failed with exit code ${LASTEXITCODE}: $pdfPath"
+                    throw "pdffonts failed with exit code ${LASTEXITCODE}: $nativePdfPath"
                 }
                 Write-Host $fontReport
                 if (-not (Test-PdfFontsEmbedded -PdfFontsOutput $fontReport)) {
