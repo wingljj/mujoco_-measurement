@@ -1,0 +1,99 @@
+\documentclass[tikz,border=0pt]{standalone}
+\usepackage{jmechplots}
+
+% Unicode region names are compared after full expansion.  Non-matching rows
+% are discarded as NaN; the source table is never rewritten or pre-filtered.
+\newcommand{\WorkspacePlot}[4]{%
+  \addplot+[#2,only marks,mark size=2.15pt,
+    x filter/.code={%
+      \edef\RegionInTable{\thisrow{region_cn}}%
+      \edef\RegionRequested{#1}%
+      \ifx\RegionInTable\RegionRequested\else
+        \def\pgfmathresult{nan}%
+      \fi
+    }]
+    table[x=#3,y=#4,col sep=comma]{data/fig02_workspace.csv};%
+}
+
+\pgfplotsset{
+  workspace/common/.style={
+    jmech/base,
+    width=4.63cm,height=4.00cm,
+    axis equal image,
+    xmin=-1.05,xmax=1.95,
+    tick label style={font=\fontsize{8}{9.6}\selectfont},
+    label style={font=\fontsize{8}{9.6}\selectfont},
+    title style={font=\fontsize{8}{9.6}\selectfont,yshift=-1pt},
+    legend image post style={mark size=2.15pt},
+    clip marker paths=true
+  },
+  region standard/.style={color=JBlue,mark=o,
+    mark options={draw=JBlue,fill=white,line width=0.85pt}},
+  region wide/.style={color=JRed,mark=square,
+    mark options={draw=JRed,fill=white,line width=0.85pt}},
+  region low/.style={color=JGreen,mark=triangle,
+    mark options={draw=JGreen,fill=white,line width=0.85pt}},
+  region high/.style={color=JGold,mark=diamond,
+    mark options={draw=JGold,fill=white,line width=0.85pt}},
+  region far/.style={color=black,mark=pentagon,
+    mark options={draw=black,fill=white,line width=0.85pt}}
+}
+
+\begin{document}
+\begin{tikzpicture}[every node/.style={font=\fontsize{8}{9.6}\selectfont}]
+  \path[use as bounding box] (0,0) rectangle (15,6);
+  \begin{scope}[shift={(2.18,2.12)}]
+  \begin{groupplot}[
+    group style={group size=3 by 1,horizontal sep=0.25cm},
+    workspace/common
+  ]
+    \nextgroupplot[
+      title={\strut 俯视投影},xlabel={$X$ / m},ylabel={$Y$ / m},
+      ymin=-1.05,ymax=1.05,
+      legend to name=workspacelegend,
+      legend columns=5,
+      legend style={/tikz/every even column/.append style={column sep=3pt}}
+    ]
+      \WorkspacePlot{标准区}{region standard}{x}{y}
+      \addlegendentry{标准区}
+      \WorkspacePlot{宽方位角区}{region wide}{x}{y}
+      \addlegendentry{宽方位角区}
+      \WorkspacePlot{低伸区}{region low}{x}{y}
+      \addlegendentry{低伸区}
+      \WorkspacePlot{高伸区}{region high}{x}{y}
+      \addlegendentry{高伸区}
+      \WorkspacePlot{远距离区}{region far}{x}{y}
+      \addlegendentry{远距离区}
+      \addplot+[black,solid,mark=triangle*,mark size=2.5pt,only marks]
+        coordinates {(0,0)};
+      \node[anchor=north east,align=center,text=black]
+        at (axis cs:0.15,-0.15) {机械臂\\基座};
+
+    \nextgroupplot[
+      title={\strut 正视投影},xlabel={$X$ / m},ylabel={$Z$ / m},
+      ymin=-0.08,ymax=2.0
+    ]
+      \WorkspacePlot{标准区}{region standard}{x}{z}
+      \WorkspacePlot{宽方位角区}{region wide}{x}{z}
+      \WorkspacePlot{低伸区}{region low}{x}{z}
+      \WorkspacePlot{高伸区}{region high}{x}{z}
+      \WorkspacePlot{远距离区}{region far}{x}{z}
+      \addplot+[black,solid,mark=triangle*,mark size=2.5pt,only marks]
+        coordinates {(0,0)};
+
+    \nextgroupplot[
+      title={\strut 侧视投影},xlabel={$Y$ / m},ylabel={$Z$ / m},
+      xmin=-1.50,xmax=1.50,ymin=-0.08,ymax=2.0
+    ]
+      \WorkspacePlot{标准区}{region standard}{y}{z}
+      \WorkspacePlot{宽方位角区}{region wide}{y}{z}
+      \WorkspacePlot{低伸区}{region low}{y}{z}
+      \WorkspacePlot{高伸区}{region high}{y}{z}
+      \WorkspacePlot{远距离区}{region far}{y}{z}
+      \addplot+[black,solid,mark=triangle*,mark size=2.5pt,only marks]
+        coordinates {(0,0)};
+  \end{groupplot}
+  \end{scope}
+  \node[anchor=south] at (7.5,0.10) {\pgfplotslegendfromname{workspacelegend}};
+\end{tikzpicture}
+\end{document}

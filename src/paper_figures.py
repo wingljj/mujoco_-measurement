@@ -102,6 +102,21 @@ def read_results(path: Path) -> List[Dict[str, object]]:
     return rows
 
 
+def read_ablation_summary(path: Path) -> List[Dict[str, object]]:
+    """Read the ablation rates used by the success dashboard."""
+    rows: List[Dict[str, object]] = []
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            rows.append(
+                {
+                    "variant": row["variant"],
+                    "sim_rate_pct": float(row["sim_success_of_total_pct"]),
+                    "ik_rate_pct": float(row["ik_reachability_pct"]),
+                }
+            )
+    return rows
+
+
 def _as_bool(value: str) -> bool:
     return value.strip().lower() in {"true", "1", "yes"}
 
@@ -323,35 +338,52 @@ def plot_error_tilt_correlation(rows: List[Dict[str, object]], out_dir: Path) ->
     plt.close(fig)
 
 
-def plot_success_metrics_dashboard(rows: List[Dict[str, object]], out_dir: Path) -> None:
-    total = len(rows)
-    reachable = sum(bool(row["reachable"]) for row in rows)
-    success = sum(bool(row["success"]) for row in rows)
-    tracking_failed = sum(bool(row["reachable"]) and not bool(row["success"]) for row in rows)
-    rejected = total - reachable
-    success_rows = [row for row in rows if row["success"]]
-    errors = np.asarray([float(row["final_error_m"]) * 1000 for row in success_rows], dtype=float)
-    tilts = np.asarray([float(row["max_tilt_deg"]) for row in success_rows], dtype=float)
+def plot_success_metrics_dashboard(
+    rows: List[Dict[str, object]],
+    ablation_rows: List[Dict[str, object]],
+    out_dir: Path,
+) -> None:
+    errors = np.asarray(
+        [
+            float(row["final_error_m"]) * 1000
+            for row in rows
+            if np.isfinite(float(row["final_error_m"]))
+        ],
+        dtype=float,
+    )
+    tilts = np.asarray(
+        [
+            float(row["max_tilt_deg"])
+            for row in rows
+            if np.isfinite(float(row["max_tilt_deg"]))
+        ],
+        dtype=float,
+    )
 
     fig = plt.figure(figsize=(8.4, 4.4), facecolor="white")
     gs = gridspec.GridSpec(1, 3, width_ratios=[0.8, 1.0, 1.0], figure=fig)
-    ax_donut = fig.add_subplot(gs[0, 0])
+    ax_rate = fig.add_subplot(gs[0, 0])
     ax_err = fig.add_subplot(gs[0, 1])
     ax_tilt = fig.add_subplot(gs[0, 2])
 
-    sizes = [success, tracking_failed, rejected]
-    labels = ["成功", "跟踪失败", "IK拒绝"]
-    colors = ["#2ec4b6", "#ff006e", "#8d99ae"]
-    wedges, _ = ax_donut.pie(
-        sizes,
-        colors=colors,
-        startangle=110,
-        wedgeprops={"width": 0.42, "edgecolor": "white", "linewidth": 1.2},
-    )
-    ax_donut.text(0, 0.05, f"{success}/{total}", ha="center", va="center", fontsize=17, weight="bold")
-    ax_donut.text(0, -0.15, "成功目标", ha="center", va="center", fontsize=8)
-    ax_donut.set_title("任务结果", weight="bold")
-    ax_donut.legend(wedges, labels, loc="lower center", bbox_to_anchor=(0.5, -0.18), frameon=False)
+    label_map = {
+        "full_method": "完整方法",
+        "no_tilt_barrier": "无倾角屏障",
+        "position_only": "纯位置",
+        "position_orientation": "位置+姿态",
+    }
+    display_rows = [row for row in ablation_rows if row["variant"] in label_map]
+    labels = [label_map[str(row["variant"])] for row in display_rows]
+    rates = [float(row["sim_rate_pct"]) for row in display_rows]
+    colors = ["#2ec4b6", "#4c78a8", "#f2b134", "#9c6ade"]
+    bars = ax_rate.bar(np.arange(len(rates)), rates, color=colors, edgecolor="#222222", linewidth=0.5)
+    ax_rate.set_ylim(0, 105)
+    ax_rate.set_ylabel("成功率 (%)")
+    ax_rate.set_xticks(np.arange(len(labels)), labels, rotation=28, ha="right")
+    ax_rate.set_title("消融仿真成功率", weight="bold")
+    ax_rate.grid(axis="y", alpha=0.25)
+    for bar, rate in zip(bars, rates):
+        ax_rate.text(bar.get_x() + bar.get_width() / 2, rate + 1.2, f"{rate:.1f}%", ha="center", va="bottom", fontsize=7)
 
     violin = ax_err.violinplot(errors, showmeans=True, showmedians=True)
     _style_violin(violin, "#ffbe0b")
@@ -370,6 +402,76 @@ def plot_success_metrics_dashboard(rows: List[Dict[str, object]], out_dir: Path)
     ax_tilt.grid(axis="y", alpha=0.30)
     fig.tight_layout()
     save(fig, out_dir, "success_metrics_dashboard")
+    plt.close(fig)
+
+
+def plot_dynamic_metrics(results_path: Path, out_dir: Path) -> None:
+    """Plot distributions of the four dynamic proxy metrics."""
+    with results_path.open("r", newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    fields = [
+        ("dyn_max_accel", "最大加速度", "m/s²"),
+        ("dyn_max_jerk", "最大 Jerk", "m/s³"),
+        ("dyn_max_ang_vel", "最大角速度", "rad/s"),
+        ("dyn_avg_ang_vel", "平均角速度", "rad/s"),
+    ]
+    fig, axes = plt.subplots(2, 2, figsize=(7.2, 5.2), facecolor="white")
+    for ax, (field, title, unit), color in zip(
+        axes.flat, fields, ["#4c78a8", "#f2b134", "#9c6ade", "#2ec4b6"]
+    ):
+        values = np.asarray([_float(row[field]) for row in rows], dtype=float)
+        values = values[np.isfinite(values)]
+        if field == "dyn_max_accel":
+            bins = 10
+        else:
+            bins = np.geomspace(values.min() * 0.9, values.max() * 1.1, 10)
+            ax.set_xscale("log")
+            ax.xaxis.set_major_formatter(
+                mpl.ticker.FuncFormatter(lambda value, _: f"{value:.0e}")
+            )
+            ax.xaxis.set_minor_formatter(mpl.ticker.NullFormatter())
+        ax.hist(values, bins=bins, color=color, edgecolor="white", linewidth=0.7)
+        ax.axvline(np.median(values), color="#222222", linestyle="--", linewidth=1.1, label="P50")
+        ax.set_title(title, weight="bold")
+        ax.set_xlabel(unit)
+        ax.set_ylabel("计数")
+        ax.grid(axis="y", alpha=0.25)
+        ax.legend(frameon=False)
+    fig.tight_layout()
+    save(fig, out_dir, "fig07_dynamic_metrics")
+    plt.close(fig)
+
+
+def plot_baseline_scatter(
+    full_method_path: Path,
+    priority_path: Path,
+    out_dir: Path,
+) -> None:
+    """Compare tracking error and maximum tilt for two matched baselines."""
+    fig, ax = plt.subplots(figsize=(6.4, 4.8), facecolor="white")
+    datasets = [
+        (full_method_path, "full_method", "#2ec4b6", "o"),
+        (priority_path, "priority_ik", "#9c6ade", "^"),
+    ]
+    for path, label, color, marker in datasets:
+        with path.open("r", newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+        x = np.asarray([_float(row["final_error_m"]) * 1000 for row in rows], dtype=float)
+        y = np.asarray([_float(row["max_tilt_deg"]) for row in rows], dtype=float)
+        finite = np.isfinite(x) & np.isfinite(y)
+        ax.scatter(
+            x[finite], y[finite], s=24, alpha=0.65, color=color,
+            marker=marker, edgecolors="#222222", linewidths=0.35, label=label,
+        )
+    ax.axvline(20, color="#d7263d", linestyle="--", linewidth=1.2, label="20 mm阈值")
+    ax.axhline(SAFE_LIMIT_DEG, color="#d7263d", linestyle=":", linewidth=1.2, label="45°阈值")
+    ax.set_xlabel("最终跟踪误差 (mm)")
+    ax.set_ylabel("最大杯体倾角 (°)")
+    ax.set_title("完整方法与优先级 IK 的跟踪权衡", weight="bold")
+    ax.grid(True, alpha=0.25)
+    ax.legend(frameon=False)
+    fig.tight_layout()
+    save(fig, out_dir, "fig08_baseline_comparison")
     plt.close(fig)
 
 
@@ -438,6 +540,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--results", default="outputs/experiment_001/results.csv")
     parser.add_argument("--trajectories", default="outputs/experiment_001/trajectories.npz")
     parser.add_argument("--out", default="outputs/paper_figures")
+    parser.add_argument("--ablation-summary", default="outputs/ablation_study/ablation_summary.csv")
+    parser.add_argument("--dynamic-results", default="outputs/round2_experiments/dynamic_metrics_results.csv")
+    parser.add_argument("--priority-results", default="outputs/external_baselines/priority_ik_results.csv")
+    parser.add_argument("--word-out", default="outputs/word_figures")
     return parser
 
 
@@ -445,14 +551,22 @@ def main() -> None:
     args = build_parser().parse_args()
     configure_style()
     rows = read_results(Path(args.results))
+    ablation_rows = read_ablation_summary(Path(args.ablation_summary))
     trajectories = load_trajectories(Path(args.trajectories))
     out_dir = Path(args.out)
     plot_method_overview(out_dir)
     plot_workspace_multiview(rows, out_dir)
     plot_case_study_panel(rows, trajectories, out_dir)
     plot_error_tilt_correlation(rows, out_dir)
-    plot_success_metrics_dashboard(rows, out_dir)
+    plot_success_metrics_dashboard(rows, ablation_rows, out_dir)
     plot_mujoco_snapshots(rows, trajectories, Path(args.model), out_dir)
+    word_out = Path(args.word_out)
+    plot_dynamic_metrics(Path(args.dynamic_results), word_out)
+    plot_baseline_scatter(
+        Path("outputs/ablation_study/full_method_results.csv"),
+        Path(args.priority_results),
+        word_out,
+    )
 
 
 if __name__ == "__main__":

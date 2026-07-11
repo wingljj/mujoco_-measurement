@@ -1,0 +1,86 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{jmechplots}[2026/07/11 Unified journal plotting style]
+
+\RequirePackage[UTF8,fontset=windows]{ctex}
+\RequirePackage{pgfplots}
+\RequirePackage{pgfplotstable}
+\RequirePackage{siunitx}
+\RequirePackage{xcolor}
+
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{groupplots,statistics,fillbetween}
+\usetikzlibrary{arrows.meta,calc,positioning,shapes.geometric,patterns.meta}
+
+\definecolor{JBlue}{HTML}{244A73}
+\definecolor{JRed}{HTML}{8C3B3B}
+\definecolor{JGreen}{HTML}{426B57}
+\definecolor{JGold}{HTML}{9A7432}
+\definecolor{JGray}{HTML}{666666}
+\definecolor{JLightGray}{HTML}{D8D8D8}
+
+\newlength{\SingleWidth}
+\newlength{\DoubleWidth}
+\setlength{\SingleWidth}{8cm}
+\setlength{\DoubleWidth}{15cm}
+
+\pgfplotsset{
+  jmech/base/.style={
+    axis lines=box,
+    axis line style={black,line width=0.7pt},
+    tick align=inside,
+    major tick length=3pt,
+    minor tick length=1.5pt,
+    tick label style={font=\fontsize{8}{9.6}\selectfont},
+    label style={font=\fontsize{8}{9.6}\selectfont},
+    title style={font=\fontsize{8}{9.6}\selectfont},
+    legend style={
+      font=\fontsize{8}{9.6}\selectfont,
+      draw=none,
+      fill=none
+    },
+    grid=none,
+    scaled ticks=false,
+    every axis plot/.append style={line width=0.9pt}
+  },
+  jmech/single/.style={
+    jmech/base,
+    width=\FigWidth,
+    height=\FigHeight
+  },
+  jmech/blue series/.style={
+    color=JBlue,
+    solid,
+    mark=o,
+    mark options={draw=JBlue,fill=white,solid}
+  },
+  jmech/red series/.style={
+    color=JRed,
+    dashed,
+    mark=square,
+    mark options={draw=JRed,fill=white,solid}
+  },
+  jmech/green series/.style={
+    color=JGreen,
+    dashdotted,
+    mark=triangle,
+    mark options={draw=JGreen,fill=white,solid}
+  },
+  jmech/black series/.style={
+    color=black,
+    dotted,
+    mark=diamond,
+    mark options={draw=black,fill=white,solid}
+  },
+  jmech/threshold/.style={
+    color=JGray,
+    densely dashed,
+    mark=none,
+    line width=0.9pt
+  },
+  jmech/light grid/.style={
+    grid=both,
+    grid style={color=JLightGray,dashed,line width=0.4pt}
+  }
+}
+
+\endinput

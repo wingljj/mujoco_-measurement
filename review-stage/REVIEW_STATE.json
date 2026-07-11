@@ -1,0 +1,10 @@
+{
+  "round": 2,
+  "threadId": null,
+  "status": "in_progress",
+  "difficulty": "medium",
+  "last_score": 2.0,
+  "last_verdict": "not ready",
+  "pending_experiments": ["background_baseline_comparison"],
+  "timestamp": "2026-06-04T01:00:00"
+}

@@ -1,0 +1,168 @@
+\documentclass[tikz,border=0pt]{standalone}
+\usepackage{jmechplots}
+
+\pgfplotsset{
+  case/common/.style={
+    jmech/base,
+    width=5.90cm,height=3.45cm,
+    tick label style={font=\fontsize{8}{9.6}\selectfont},
+    label style={font=\fontsize{8}{9.6}\selectfont},
+    legend style={font=\fontsize{8}{9.6}\selectfont,
+      /tikz/every even column/.append style={column sep=2pt}},
+    title style={font=\fontsize{8}{9.6}\selectfont},
+    clip marker paths=true
+  }
+}
+
+\begin{document}
+\begin{tikzpicture}[
+  every node/.style={font=\fontsize{8}{9.6}\selectfont},
+  panel label/.style={anchor=north west,font=\fontsize{8}{9.6}\selectfont}
+]
+  \path[use as bounding box] (0,0) rectangle (15,9);
+  \begin{scope}[shift={(1.20,4.45)}]
+  \begin{groupplot}[
+    group style={group size=2 by 2,horizontal sep=2.00cm,vertical sep=1.18cm},
+    case/common
+  ]
+    \nextgroupplot[
+      xlabel={$X$ / m},ylabel={$Z$ / m},
+      xmin=0.82,xmax=1.41,ymin=0.82,ymax=1.62,
+      legend pos=south west,
+      legend style={cells={anchor=west},row sep=-1pt}
+    ]
+      \addplot+[JBlue,solid,mark=none,line width=1.05pt]
+        table[x=x,y=z,col sep=comma]{data/fig04_trajectory.csv};
+      \addlegendentry{实际轨迹}
+      \addplot+[JGray,only marks,mark=diamond,mark repeat=5,mark phase=1,
+        mark size=1.8pt,
+        mark options={draw=JGray,fill=white,line width=0.85pt}]
+        table[x=desired_x,y=desired_z,col sep=comma]{data/fig04_trajectory.csv};
+      \addlegendentry{期望轨迹}
+      \addplot+[JBlue,only marks,mark=o,mark size=2.7pt,
+        mark options={draw=JBlue,fill=white,line width=0.9pt}]
+        table[x=x,y=z,col sep=comma,restrict expr to domain={\coordindex}{0:0}]
+        {data/fig04_trajectory.csv};
+      \addplot+[JRed,only marks,mark=star,mark size=3.2pt,
+        mark options={draw=JRed,fill=white,line width=0.9pt}]
+        table[x=desired_x,y=desired_z,col sep=comma,
+          restrict expr to domain={\coordindex}{44:44}]
+        {data/fig04_trajectory.csv};
+      \node[anchor=north east,text=JBlue,xshift=-2pt,yshift=-2pt]
+        at (axis cs:1.359,1.55) {起点};
+      \node[anchor=south west,text=JRed,xshift=2pt,yshift=2pt]
+        at (axis cs:1.1200084,0.9722416) {目标};
+      \node[panel label] at (rel axis cs:0.01,0.99) {(a)};
+
+    \nextgroupplot[
+      xlabel={路径点},ylabel={关节角 / rad},
+      xmin=0,xmax=44,ymin=-0.75,ymax=0.95,
+      legend columns=3,
+      legend style={at={(0.50,1.03)},anchor=south,draw=none,row sep=-2pt}
+    ]
+      \addplot+[JBlue,solid,mark=none] table[x=sample,y=q1,col sep=comma]{data/fig04_joints.csv};
+      \addlegendentry{$q_1$}
+      \addplot+[JRed,dashed,mark=none] table[x=sample,y=q2,col sep=comma]{data/fig04_joints.csv};
+      \addlegendentry{$q_2$}
+      \addplot+[JGreen,dashdotted,mark=none] table[x=sample,y=q3,col sep=comma]{data/fig04_joints.csv};
+      \addlegendentry{$q_3$}
+      \addplot+[black,dotted,mark=none] table[x=sample,y=q4,col sep=comma]{data/fig04_joints.csv};
+      \addlegendentry{$q_4$}
+      \addplot+[JGold,densely dashed,mark=none] table[x=sample,y=q5,col sep=comma]{data/fig04_joints.csv};
+      \addlegendentry{$q_5$}
+      \addplot+[JGray,loosely dashdotted,mark=none,line width=1.15pt]
+        table[x=sample,y=q6,col sep=comma]{data/fig04_joints.csv};
+      \addlegendentry{$q_6$}
+      \node[panel label] at (rel axis cs:0.01,0.99) {(b)};
+
+    \nextgroupplot[
+      xlabel={时间 / s},ylabel={经纬仪倾斜角 / $^{\circ}$},
+      xmin=0,xmax=3.4,ymin=0,ymax=1.0
+    ]
+      \addplot+[JBlue,solid,mark=none,line width=1.05pt]
+        table[x=time_s,y=tilt_deg,col sep=comma,
+          restrict x to domain=0:1.35]{data/fig04_tilt.csv};
+      \addplot+[JBlue,only marks,mark=o,mark size=2.4pt,
+        mark options={draw=JBlue,fill=white,line width=0.9pt}]
+        table[x=time_s,y=tilt_deg,col sep=comma,
+          restrict x to domain=3.3:3.4]{data/fig04_tilt.csv};
+      \node[anchor=south east,text=JBlue] at (axis cs:3.31,0.30)
+        {末端稳定样本};
+      \node[panel label] at (rel axis cs:0.01,0.99) {(c)};
+
+    \nextgroupplot[
+      xlabel={路径点},ylabel={IK位置残差 / mm},
+      xmin=0,xmax=44,ymin=0,ymax=0.009
+    ]
+      \addplot+[JRed,solid,mark=none,line width=1.05pt]
+        table[x=sample,y=ik_error_mm,col sep=comma]{data/fig04_trajectory.csv};
+      \node[panel label] at (rel axis cs:0.01,0.99) {(d)};
+  \end{groupplot}
+  \begin{axis}[
+    jmech/base,scale only axis,
+    at={(group c1r1.north west)},anchor=south west,
+    xshift=0cm,yshift=0.52cm,
+    width=3.55cm,height=0.28cm,
+    xmin=0,xmax=10,ymin=0,ymax=1,
+    xtick={0,10},ytick=\empty,
+    axis lines=left,clip=false,
+    title={阈值概览（研究设定）},
+    title style={font=\fontsize{8}{9.6}\selectfont,yshift=-2pt},
+    tick label style={font=\fontsize{8}{9.6}\selectfont},
+    axis background/.style={fill=white}
+  ]
+    \addplot+[JBlue,only marks,mark=o,mark size=2.2pt,
+      mark options={draw=JBlue,fill=white,line width=0.9pt}]
+      table[x=tilt_deg,y expr=0.5,col sep=comma,
+        restrict expr to domain={\coordindex}{44:44}]{data/fig04_tilt.csv};
+    \addplot+[JGray,densely dashed,mark=none,line width=0.9pt]
+      coordinates {(10,0) (10,1)};
+    \node[anchor=west,text=JBlue] at (axis cs:1.25,0.50)
+      {最大值 $0.882^{\circ}$};
+  \end{axis}
+  \begin{axis}[
+    jmech/base,scale only axis,
+    at={(group c1r1.north west)},anchor=south west,
+    xshift=0cm,yshift=1.62cm,
+    width=3.55cm,height=0.28cm,
+    xmin=0,xmax=20,ymin=0,ymax=1,
+    xtick={0,20},ytick=\empty,
+    axis lines=left,clip=false,
+    title={任务判定概览（本文设定）},
+    title style={font=\fontsize{8}{9.6}\selectfont,yshift=-2pt},
+    tick label style={font=\fontsize{8}{9.6}\selectfont},
+    axis background/.style={fill=white}
+  ]
+    \addplot+[JRed,only marks,mark=o,mark size=2.2pt,
+      mark options={draw=JRed,fill=white,line width=0.9pt}]
+      table[x=ik_error_mm,y expr=0.5,col sep=comma,
+        restrict expr to domain={\coordindex}{17:17}]{data/fig04_trajectory.csv};
+    \addplot+[JGray,densely dashed,mark=none,line width=0.9pt]
+      coordinates {(20,0) (20,1)};
+    \node[anchor=west,text=JRed] at (axis cs:1.2,0.50)
+      {最大值 $0.0083$ mm};
+  \end{axis}
+  \begin{axis}[
+    jmech/base,
+    at={(group c2r1.north west)},anchor=south west,
+    xshift=0cm,yshift=1.05cm,
+    scale only axis,
+    width=3.40cm,height=0.72cm,
+    xmin=0,xmax=44,ymin=-0.0042,ymax=0.0052,
+    xtick={0,20,40},ytick={-0.004,0,0.004},
+    yticklabels={$-0.004$,0,$0.004$},
+    scaled ticks=false,
+    title={$q_4$、$q_6$局部放大 / rad},
+    title style={font=\fontsize{8}{9.6}\selectfont,yshift=-2pt},
+    tick label style={font=\fontsize{8}{9.6}\selectfont},
+    axis background/.style={fill=white},
+    every axis plot/.append style={line width=0.9pt}
+  ]
+    \addplot+[black,dotted,mark=none]
+      table[x=sample,y=q4,col sep=comma]{data/fig04_joints.csv};
+    \addplot+[JGray,loosely dashdotted,mark=none,line width=1.15pt]
+      table[x=sample,y=q6,col sep=comma]{data/fig04_joints.csv};
+  \end{axis}
+  \end{scope}
+\end{tikzpicture}
+\end{document}
