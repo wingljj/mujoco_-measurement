@@ -60,6 +60,27 @@ function Invoke-NativeCommand {
     }
 }
 
+function Remove-SafeChildDirectory {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Directory,
+
+        [Parameter(Mandatory)]
+        [string]$ExpectedParentDirectory
+    )
+
+    $parentPath = [System.IO.Path]::GetFullPath($ExpectedParentDirectory).TrimEnd('\', '/')
+    $childPath = [System.IO.Path]::GetFullPath($Directory)
+    $parentPrefix = "${parentPath}$([System.IO.Path]::DirectorySeparatorChar)"
+    if (-not $childPath.StartsWith($parentPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to remove directory outside its expected parent: $childPath"
+    }
+
+    if (Test-Path -LiteralPath $childPath) {
+        Remove-Item -LiteralPath $childPath -Recurse -Force
+    }
+}
+
 function Reset-StagingDirectory {
     param(
         [Parameter(Mandatory)]
@@ -69,17 +90,10 @@ function Reset-StagingDirectory {
         [string]$ExpectedParentDirectory
     )
 
-    $parentPath = [System.IO.Path]::GetFullPath($ExpectedParentDirectory).TrimEnd('\', '/')
-    $stagingPath = [System.IO.Path]::GetFullPath($StagingDirectory)
-    $parentPrefix = "${parentPath}$([System.IO.Path]::DirectorySeparatorChar)"
-    if (-not $stagingPath.StartsWith($parentPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "Refusing to reset staging directory outside its expected parent: $stagingPath"
-    }
-
-    if (Test-Path -LiteralPath $stagingPath) {
-        Remove-Item -LiteralPath $stagingPath -Recurse -Force
-    }
-    New-Item -ItemType Directory -Force -Path $stagingPath | Out-Null
+    Remove-SafeChildDirectory `
+        -Directory $StagingDirectory `
+        -ExpectedParentDirectory $ExpectedParentDirectory
+    New-Item -ItemType Directory -Force -Path $StagingDirectory | Out-Null
 }
 
 function Publish-StagedFigures {
@@ -91,30 +105,87 @@ function Publish-StagedFigures {
         [string]$StagingDirectory,
 
         [Parameter(Mandatory)]
-        [string]$OutputDirectory
+        [string]$OutputDirectory,
+
+        [Parameter(Mandatory)]
+        [string]$BackupDirectory,
+
+        [Parameter()]
+        [scriptblock]$ReplaceAction
     )
 
     New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
     $publicationToken = [guid]::NewGuid().ToString('N')
     $pendingFiles = @()
+    $destinationRecords = @()
 
     try {
         foreach ($basename in $Basenames) {
+            $finalPath = Join-Path $OutputDirectory "${basename}.png"
+            if ((Test-Path -LiteralPath $finalPath) -and
+                -not (Test-Path -LiteralPath $finalPath -PathType Leaf)) {
+                throw "Managed publication destination is not a file: $finalPath"
+            }
+
+            $destinationExisted = Test-Path -LiteralPath $finalPath -PathType Leaf
+            $backupPath = Join-Path $BackupDirectory "${basename}.png"
+            if ($destinationExisted) {
+                Copy-Item -LiteralPath $finalPath -Destination $backupPath -Force
+            }
+            $destinationRecords += [pscustomobject]@{
+                FinalPath = $finalPath
+                Existed = $destinationExisted
+                BackupPath = $backupPath
+            }
+
             $sourcePath = Join-Path $StagingDirectory "${basename}.png"
             $temporaryPath = Join-Path $OutputDirectory ".${basename}.${publicationToken}.tmp.png"
             Copy-Item -LiteralPath $sourcePath -Destination $temporaryPath -Force
             $pendingFiles += [pscustomobject]@{
                 TemporaryPath = $temporaryPath
-                FinalPath = Join-Path $OutputDirectory "${basename}.png"
+                FinalPath = $finalPath
             }
         }
 
-        foreach ($pendingFile in $pendingFiles) {
-            Move-Item `
-                -LiteralPath $pendingFile.TemporaryPath `
-                -Destination $pendingFile.FinalPath `
-                -Force
+        for ($index = 0; $index -lt $pendingFiles.Count; $index++) {
+            $pendingFile = $pendingFiles[$index]
+            if ($ReplaceAction) {
+                & $ReplaceAction $pendingFile.TemporaryPath $pendingFile.FinalPath $index
+            }
+            else {
+                Move-Item `
+                    -LiteralPath $pendingFile.TemporaryPath `
+                    -Destination $pendingFile.FinalPath `
+                    -Force
+            }
         }
+    }
+    catch {
+        $publicationError = $_
+        $rollbackErrors = @()
+        foreach ($destinationRecord in $destinationRecords) {
+            try {
+                if ($destinationRecord.Existed) {
+                    Copy-Item `
+                        -LiteralPath $destinationRecord.BackupPath `
+                        -Destination $destinationRecord.FinalPath `
+                        -Force
+                }
+                else {
+                    if (Test-Path -LiteralPath $destinationRecord.FinalPath) {
+                        Remove-Item -LiteralPath $destinationRecord.FinalPath -Force
+                    }
+                }
+            }
+            catch {
+                $rollbackErrors += $_.Exception.Message
+            }
+        }
+
+        if ($rollbackErrors.Count -gt 0) {
+            throw "Publication failed and rollback was incomplete. Original: $publicationError Rollback: $($rollbackErrors -join '; ')"
+        }
+        throw $publicationError
     }
     finally {
         foreach ($pendingFile in $pendingFiles) {
@@ -138,28 +209,51 @@ function Invoke-AtomicFigureBatch {
         [string]$OutputDirectory,
 
         [Parameter(Mandatory)]
-        [scriptblock]$BuildAction
+        [scriptblock]$BuildAction,
+
+        [Parameter()]
+        [scriptblock]$ReplaceAction
     )
 
-    Reset-StagingDirectory `
-        -StagingDirectory $StagingDirectory `
-        -ExpectedParentDirectory $StagingParentDirectory
+    $backupDirectory = Join-Path $StagingParentDirectory 'word-publication-backup'
+    try {
+        Reset-StagingDirectory `
+            -StagingDirectory $StagingDirectory `
+            -ExpectedParentDirectory $StagingParentDirectory
+        Reset-StagingDirectory `
+            -StagingDirectory $backupDirectory `
+            -ExpectedParentDirectory $StagingParentDirectory
 
-    foreach ($basename in $Basenames) {
-        & $BuildAction $basename $StagingDirectory
+        foreach ($basename in $Basenames) {
+            & $BuildAction $basename $StagingDirectory
+        }
+
+        foreach ($basename in $Basenames) {
+            $stagedPngPath = Join-Path $StagingDirectory "${basename}.png"
+            if (-not (Test-Path -LiteralPath $stagedPngPath -PathType Leaf)) {
+                throw "Batch did not produce current staged PNG: $stagedPngPath"
+            }
+        }
+
+        Publish-StagedFigures `
+            -Basenames $Basenames `
+            -StagingDirectory $StagingDirectory `
+            -OutputDirectory $OutputDirectory `
+            -BackupDirectory $backupDirectory `
+            -ReplaceAction $ReplaceAction
     }
-
-    foreach ($basename in $Basenames) {
-        $stagedPngPath = Join-Path $StagingDirectory "${basename}.png"
-        if (-not (Test-Path -LiteralPath $stagedPngPath -PathType Leaf)) {
-            throw "Batch did not produce current staged PNG: $stagedPngPath"
+    finally {
+        try {
+            Remove-SafeChildDirectory `
+                -Directory $StagingDirectory `
+                -ExpectedParentDirectory $StagingParentDirectory
+        }
+        finally {
+            Remove-SafeChildDirectory `
+                -Directory $backupDirectory `
+                -ExpectedParentDirectory $StagingParentDirectory
         }
     }
-
-    Publish-StagedFigures `
-        -Basenames $Basenames `
-        -StagingDirectory $StagingDirectory `
-        -OutputDirectory $OutputDirectory
 }
 
 function Invoke-FigureBuild {
