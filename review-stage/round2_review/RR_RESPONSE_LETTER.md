@@ -42,7 +42,7 @@ Dear Editor,
 
 **Location in Revised Manuscript**：§4.4，表 4。
 
-**Related Commit**：`6adb1fb review0604_round3_p0_3a_add_tight_tilt_variants`；`61586ab review0604_round3_p0_3b_activation_experiment`。
+**Related Commit**：`6adb1fb review0604_round3_p0_3a_add_tight_tilt_variants`；`61586ab review0604_round3_p0_3b_activation_experiment`；`ec06e27 review0604_round3_p3_address_final_review_findings`。
 
 **Verified?**：[x]
 
@@ -70,7 +70,7 @@ Dear Editor,
 
 **Location in Revised Manuscript**：§1.5.1–§1.5.6；§11 参考文献。
 
-**Related Commit**：`5b51673 review0604_round3_p1_1_related_work`。
+**Related Commit**：`5b51673 review0604_round3_p1_1_related_work`；`ec06e27 review0604_round3_p3_address_final_review_findings`。
 
 **Verified?**：[x]（已完成主题覆盖；无法核验的指定条目已以可核验文献替代）
 
@@ -84,7 +84,7 @@ Dear Editor,
 
 **Location in Revised Manuscript**：§4.5，表 5。对应的散点图已作为修订包图形产物 `fig08_baseline_comparison.png` 导出。
 
-**Related Commit**：`4866e9f review0604_round3_p1_2a_external_baseline_code`；`490e138 review0604_round3_p1_2_external_baseline`；`9c1ec3f review0604_round3_p2_regenerate_figures`。
+**Related Commit**：`4866e9f review0604_round3_p1_2a_external_baseline_code`；`490e138 review0604_round3_p1_2_external_baseline`；`9c1ec3f review0604_round3_p2_regenerate_figures`；`ec06e27 review0604_round3_p3_address_final_review_findings`。
 
 **Verified?**：[x]
 
