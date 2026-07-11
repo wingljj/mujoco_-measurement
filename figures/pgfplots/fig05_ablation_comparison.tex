@@ -29,7 +29,7 @@
       postaction={pattern={Lines[angle=45,distance=3pt,line width=0.35pt]},
         pattern color=JBlue},
       nodes near coords={\pgfmathprintnumber[fixed,precision=1,fixed zerofill]{\pgfplotspointmeta}},
-      nodes near coords style={anchor=north east,xshift=-0.3pt,yshift=-1.5pt}
+      nodes near coords style={rotate=90,anchor=east,xshift=-1.5pt,text=JBlue}
     ] table[x=method_cn,y=ik_rate_pct,col sep=comma]{data/fig05_ablation.csv};
     \addlegendentry{IK可达率}
 
@@ -38,7 +38,7 @@
       postaction={pattern={Lines[angle=-45,distance=3pt,line width=0.35pt]},
         pattern color=JRed},
       nodes near coords={\pgfmathprintnumber[fixed,precision=1,fixed zerofill]{\pgfplotspointmeta}},
-      nodes near coords style={anchor=north west,xshift=0.3pt,yshift=-1.5pt}
+      nodes near coords style={rotate=90,anchor=east,xshift=-1.5pt,text=JRed}
     ] table[x=method_cn,y=sim_rate_pct,col sep=comma]{data/fig05_ablation.csv};
     \addlegendentry{仿真成功率}
 

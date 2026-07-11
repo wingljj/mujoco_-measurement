@@ -2,6 +2,13 @@ $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot '..\build_figures.ps1')
 
+$unicodeRoot = Join-Path ([System.IO.Path]::GetTempPath()) '科研-native-path-test'
+$unicodeChild = Join-Path $unicodeRoot 'build\figure.pdf'
+$nativeChild = ConvertTo-NativeRelativeChildPath -Path $unicodeChild -BaseDirectory $unicodeRoot
+if ($nativeChild -ne 'build\figure.pdf') {
+    throw "Native child path was not reduced to its ASCII-safe relative form: $nativeChild"
+}
+
 $testRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("jmechplots-atomic-{0}" -f [guid]::NewGuid().ToString('N'))
 $stagingDir = Join-Path $testRoot 'staging'
 $backupDir = Join-Path $testRoot 'word-publication-backup'

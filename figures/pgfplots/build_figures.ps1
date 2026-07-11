@@ -60,6 +60,24 @@ function Invoke-NativeCommand {
     }
 }
 
+function ConvertTo-NativeRelativeChildPath {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [Parameter(Mandatory)]
+        [string]$BaseDirectory
+    )
+
+    $basePath = [System.IO.Path]::GetFullPath($BaseDirectory).TrimEnd('\', '/')
+    $childPath = [System.IO.Path]::GetFullPath($Path)
+    $basePrefix = "${basePath}$([System.IO.Path]::DirectorySeparatorChar)"
+    if (-not $childPath.StartsWith($basePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Native-tool path is outside its working directory: $childPath"
+    }
+    return $childPath.Substring($basePrefix.Length)
+}
+
 function Remove-SafeChildDirectory {
     param(
         [Parameter(Mandatory)]
@@ -295,6 +313,12 @@ function Invoke-FigureBuild {
                 $pdfPath = Join-Path $buildDir "${basename}.pdf"
                 $pngPrefix = Join-Path $batchStagingDirectory $basename
                 $pngPath = "${pngPrefix}.png"
+                $nativePdfPath = ConvertTo-NativeRelativeChildPath `
+                    -Path $pdfPath `
+                    -BaseDirectory $figureDir
+                $nativePngPrefix = ConvertTo-NativeRelativeChildPath `
+                    -Path $pngPrefix `
+                    -BaseDirectory $figureDir
 
                 if (-not (Test-Path -LiteralPath $texPath -PathType Leaf)) {
                     throw "Missing figure source: $texPath"
@@ -325,7 +349,7 @@ function Invoke-FigureBuild {
                 }
 
                 Invoke-NativeCommand -Command 'pdftoppm' -Arguments @(
-                    '-png', '-r', '600', '-singlefile', $pdfPath, $pngPrefix
+                    '-png', '-r', '600', '-singlefile', $nativePdfPath, $nativePngPrefix
                 )
                 if (-not (Test-Path -LiteralPath $pngPath -PathType Leaf)) {
                     throw "pdftoppm completed without producing: $pngPath"
