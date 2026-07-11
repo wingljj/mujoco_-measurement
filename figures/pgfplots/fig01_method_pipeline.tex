@@ -17,7 +17,7 @@
   % Method pipeline
   \node[process=JBlue]  (p1) at (1.45,5.18) {目标测站采样\\[-1pt]{\color{JGray}位置与姿态候选}};
   \node[process=JRed]   (p2) at (4.48,5.18) {五项残差约束\\[-1pt]\textcolor{JGray}{位置·方向·连续性}\\\textcolor{JGray}{关节限位·倾斜}};
-  \node[process=JGreen] (p3) at (7.50,5.18) {顺序热启动逆解\\[-1pt]{\color{JGray}以上一解初始化}};
+  \node[process=JGreen] (p3) at (7.50,5.18) {顺序热启动IK\\[-1pt]{\color{JGray}以上一解初始化}};
   \node[process=JGold]  (p4) at (10.52,5.18) {轨迹执行评估\\[-1pt]{\color{JGray}可达性与姿态保持}};
   \node[process=JBlue]  (p5) at (13.55,5.18) {到位稳定测量\\[-1pt]{\color{JGray}稳定后方可开始}};
   \draw[flow] (p1.east) -- (p2.west);
