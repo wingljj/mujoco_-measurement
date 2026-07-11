@@ -86,6 +86,13 @@ ABLATION_VARIANTS = {
         name="strong_tilt_barrier",
         tilt_barrier_weight=50.0,
     ),
+    "full_tight10": AblationConfig(
+        name="full_tight10",
+    ),
+    "no_barrier_tight10": AblationConfig(
+        name="no_barrier_tight10",
+        use_tilt_barrier=False,
+    ),
 }
 
 
@@ -524,3 +531,9 @@ def _write_csv(rows: list, path: Path) -> None:
 
 if __name__ == "__main__":
     main()
+
+# 推荐调用：
+# python src/baseline_comparison.py --tilt-limit-deg 10 \
+#   --seeds 3 --targets 50 \
+#   --variants full_tight10 no_barrier_tight10 \
+#   --out outputs/ablation_study_tight10
