@@ -6,8 +6,8 @@
   \path[use as bounding box] (0,0) rectangle (8,6);
   \begin{axis}[
     jmech/base,
-    at={(1.20cm,0.90cm)},anchor=south west,
-    scale only axis,width=6.25cm,height=4.55cm,
+    at={(1.20cm,1.20cm)},anchor=south west,
+    scale only axis,width=6.25cm,height=4.25cm,
     ybar,
     ymin=0,ymax=105,
     ytick={0,20,40,60,80,100},
@@ -28,7 +28,7 @@
       draw=JBlue,fill=JBlue!28,mark=none,
       postaction={pattern={Lines[angle=45,distance=3pt,line width=0.35pt]},
         pattern color=JBlue},
-      nodes near coords={\pgfmathprintnumber[fixed,precision=1]{\pgfplotspointmeta}},
+      nodes near coords={\pgfmathprintnumber[fixed,precision=1,fixed zerofill]{\pgfplotspointmeta}},
       nodes near coords style={anchor=south east,xshift=-0.3pt,yshift=1pt}
     ] table[x=method_cn,y=ik_rate_pct,col sep=comma]{data/fig05_ablation.csv};
     \addlegendentry{IK可达率}
@@ -37,7 +37,7 @@
       draw=JRed,fill=JRed!22,mark=none,
       postaction={pattern={Lines[angle=-45,distance=3pt,line width=0.35pt]},
         pattern color=JRed},
-      nodes near coords={\pgfmathprintnumber[fixed,precision=1]{\pgfplotspointmeta}},
+      nodes near coords={\pgfmathprintnumber[fixed,precision=1,fixed zerofill]{\pgfplotspointmeta}},
       nodes near coords style={anchor=south west,xshift=0.3pt,yshift=1pt}
     ] table[x=method_cn,y=sim_rate_pct,col sep=comma]{data/fig05_ablation.csv};
     \addlegendentry{仿真成功率}

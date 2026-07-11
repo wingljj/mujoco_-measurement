@@ -5,7 +5,7 @@
   ecdf panel/.style={
     jmech/base,
     scale only axis,width=4.05cm,height=4.10cm,
-    ymin=0,ymax=1.02,ytick={0,0.2,0.4,0.6,0.8,1.0},
+    ymin=0,ymax=1,ytick={0,0.2,0.4,0.6,0.8,1.0},
     const plot,
     clip=false
   }
@@ -37,9 +37,9 @@
         table[x=value,y=cdf,col sep=comma,
           restrict expr to domain={\coordindex}{147:147}]
         {data/fig06_error_ecdf.csv};
-      \addplot+[jmech/threshold] coordinates {(20,0) (20,1.02)};
+      \addplot+[jmech/threshold] coordinates {(20,0) (20,1)};
       \node[anchor=south east,text=JGray,align=right]
-        at (axis cs:19.4,0.20) {本文任务判定\\20 mm};
+        at (axis cs:36.0,0.16) {本文任务判定\\20 mm};
       \node[anchor=north west,text=JGray] at (rel axis cs:0.025,0.91) {$n=148$};
       \node[panel label] at (rel axis cs:0.00,1.01) {(a)};
 
@@ -58,7 +58,7 @@
         table[x=value,y=cdf,col sep=comma,
           restrict expr to domain={\coordindex}{147:147}]
         {data/fig06_tilt_ecdf.csv};
-      \addplot+[jmech/threshold] coordinates {(10,0) (10,1.02)};
+      \addplot+[jmech/threshold] coordinates {(10,0) (10,1)};
       \node[anchor=south east,text=JGray,align=right]
         at (axis cs:9.75,0.16) {本文保守运输阈值\\（研究设定）10$^{\circ}$};
       \node[anchor=north west,text=JGray] at (rel axis cs:0.025,0.91) {$n=148$};
@@ -83,7 +83,7 @@
         table[x=value,y=cdf,col sep=comma,
           restrict expr to domain={\coordindex}{0:0}]
         {data/fig06_margin_ecdf.csv};
-      \addplot+[jmech/threshold] coordinates {(0,0) (0,1.02)};
+      \addplot+[jmech/threshold] coordinates {(0,0) (0,1)};
       \node[anchor=south west,text=JGray,align=left]
         at (axis cs:0.18,0.10) {0$^{\circ}$ 边界\\负值表示超过保守阈值};
       \node[anchor=north west,text=JGray] at (rel axis cs:0.025,0.91) {$n=148$};
