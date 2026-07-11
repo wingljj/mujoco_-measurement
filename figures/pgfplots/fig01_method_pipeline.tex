@@ -1,0 +1,64 @@
+\documentclass[tikz,border=1pt]{standalone}
+\usepackage{jmechplots}
+
+\begin{document}
+\begin{tikzpicture}[
+  x=1cm,y=1cm,
+  every node/.style={font=\fontsize{8}{9.6}\selectfont},
+  process/.style n args={1}{rounded corners=2pt,draw=#1,line width=0.8pt,fill=#1!7,
+                  minimum width=2.62cm,minimum height=1.08cm,align=center,inner sep=2pt},
+  flow/.style={-{Stealth[length=2.2mm,width=1.5mm]},line width=0.8pt,draw=JGray},
+  note/.style={rounded corners=1.5pt,draw=JLightGray,fill=JGray!4,align=left,inner sep=3pt},
+  ref/.style={densely dashed,line width=0.7pt,draw=JGray},
+  instrument/.style={line width=0.8pt,draw=JBlue,fill=JBlue!8}
+]
+  \path[use as bounding box] (0,0) rectangle (15,6);
+
+  % Method pipeline
+  \node[process=JBlue]  (p1) at (1.45,5.18) {目标测站采样\\[-1pt]{\color{JGray}位置与姿态候选}};
+  \node[process=JRed]   (p2) at (4.48,5.18) {五项残差约束\\[-1pt]\textcolor{JGray}{位置·方向·连续性}\\\textcolor{JGray}{关节限位·倾斜}};
+  \node[process=JGreen] (p3) at (7.50,5.18) {顺序热启动逆解\\[-1pt]{\color{JGray}以上一解初始化}};
+  \node[process=JGold]  (p4) at (10.52,5.18) {轨迹执行评估\\[-1pt]{\color{JGray}可达性与姿态保持}};
+  \node[process=JBlue]  (p5) at (13.55,5.18) {到位稳定测量\\[-1pt]{\color{JGray}稳定后方可开始}};
+  \draw[flow] (p1.east) -- (p2.west);
+  \draw[flow] (p2.east) -- (p3.west);
+  \draw[flow] (p3.east) -- (p4.west);
+  \draw[flow] (p4.east) -- (p5.west);
+
+  % Simplified theodolite and vertical references
+  \begin{scope}[shift={(2.05,0.55)}]
+    \draw[instrument,rounded corners=1pt] (0.00,0.00) rectangle (1.50,0.20);
+    \draw[instrument] (0.18,0.20) -- (0.35,0.45) -- (1.15,0.45) -- (1.32,0.20) -- cycle;
+    \draw[instrument,fill=white] (0.25,0.45) ellipse (0.50 and 0.12);
+    \draw[instrument,fill=JBlue!12] (0.30,0.45) ellipse (0.45 and 0.09);
+    \draw[JBlue,line width=1.0pt] (0.75,0.45) -- (0.75,1.63);
+    \fill[JBlue] (0.75,1.25) circle (1.5pt);
+    \begin{scope}[rotate around={12:(0.75,1.25)}]
+      \draw[instrument,fill=JBlue!10,rounded corners=1pt] (0.12,1.15) rectangle (1.38,1.35);
+      \draw[JBlue,line width=0.8pt] (0.04,1.18) -- (0.04,1.32);
+      \draw[JBlue,line width=0.8pt] (1.46,1.18) -- (1.46,1.32);
+    \end{scope}
+    \draw[ref] (-0.30,0.35) -- (-0.30,1.90);
+    \draw[-{Stealth[length=2mm]},JGray,line width=0.7pt] (-0.30,1.62) -- (-0.30,1.90);
+    \node[anchor=south,align=center,text=JGray] at (-0.30,1.92) {世界铅垂};
+    \draw[JRed,line width=0.9pt] (0.75,0.45) -- (1.03,1.88);
+    \node[anchor=south,text=JRed] at (1.12,1.89) {仪器竖轴};
+    \draw[JGold,line width=0.8pt] (0.75,1.64) arc[start angle=90,end angle=78,radius=0.38];
+    \node[text=JGold] at (1.08,1.67) {$\theta$};
+    \node[anchor=north,text=JGray] at (0.75,-0.08) {简化经纬仪};
+  \end{scope}
+
+  \node[note,text width=4.05cm] at (6.65,2.33) {\textcolor{JRed}{\textbf{45°：粗粒度机械安全上限}}\\[2pt]
+    \textcolor{JGreen}{\textbf{10°：本文保守运输阈值}}};
+  \draw[-{Stealth[length=2mm]},JGold,line width=0.8pt] (4.00,2.05) -- (4.48,2.22);
+
+  \node[rounded corners=2pt,draw=JBlue,line width=0.8pt,fill=JBlue!6,
+        minimum width=4.50cm,minimum height=0.72cm,align=center]
+        (stable) at (11.92,2.33) {到达目标测站 \quad $\longrightarrow$ \quad 姿态与速度稳定\\[-1pt]
+        \textcolor{JBlue}{\textbf{仅在稳定到位后开始测量}}};
+  \draw[flow,draw=JBlue] (9.05,2.33) -- (stable.west);
+
+  \draw[JLightGray,line width=0.6pt] (0.22,3.78) -- (14.78,3.78);
+  \node[anchor=west,text=JGray] at (0.24,3.57) {约束求解与执行流程};
+\end{tikzpicture}
+\end{document}
