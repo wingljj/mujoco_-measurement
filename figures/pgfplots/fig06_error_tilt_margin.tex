@@ -1,6 +1,28 @@
 \documentclass[tikz,border=0pt]{standalone}
 \usepackage{jmechplots}
 
+\pgfplotstableread[col sep=comma]{data/fig06_error_ecdf.csv}\ErrorECDF
+\pgfplotstableread[col sep=comma]{data/fig06_tilt_ecdf.csv}\TiltECDF
+\pgfplotstableread[col sep=comma]{data/fig06_margin_ecdf.csv}\MarginECDF
+
+\newcommand{\DeriveECDFMeta}[2]{%
+  \pgfplotstablegetrowsof{#2}%
+  \expandafter\edef\csname #1N\endcsname{\pgfplotsretval}%
+  \pgfmathtruncatemacro{\LastIndex}{\pgfplotsretval-1}%
+  \expandafter\edef\csname #1LastIndex\endcsname{\LastIndex}%
+  \pgfplotstablegetelem{0}{value}\of{#2}%
+  \expandafter\edef\csname #1FirstX\endcsname{\pgfplotsretval}%
+  \pgfplotstablegetelem{0}{cdf}\of{#2}%
+  \expandafter\edef\csname #1FirstCDF\endcsname{\pgfplotsretval}%
+  \pgfplotstablegetelem{\LastIndex}{value}\of{#2}%
+  \expandafter\edef\csname #1LastX\endcsname{\pgfplotsretval}%
+  \pgfplotstablegetelem{\LastIndex}{cdf}\of{#2}%
+  \expandafter\edef\csname #1LastCDF\endcsname{\pgfplotsretval}%
+}
+\DeriveECDFMeta{Error}{\ErrorECDF}
+\DeriveECDFMeta{Tilt}{\TiltECDF}
+\DeriveECDFMeta{Margin}{\MarginECDF}
+
 \pgfplotsset{
   ecdf panel/.style={
     jmech/base,
@@ -23,45 +45,49 @@
     ecdf panel
   ]
     \nextgroupplot[
-      xmin=0,xmax=37,xtick={0,10,20,30},
+      xmin=0,xmax=40,xtick={0,10,20,30,40},
       xlabel={最终位置误差 / mm},
       ylabel={累积比例}
     ]
       \addplot+[JBlue,solid,mark=none,line width=1.05pt]
-        coordinates {(0,0) (1.2034797167491618,0)
-          (1.2034797167491618,0.006756756756756757)};
+        coordinates {(0,0) (\ErrorFirstX,0)
+          (\ErrorFirstX,\ErrorFirstCDF)};
       \addplot+[JBlue,solid,mark=none,line width=1.05pt]
-        table[x=value,y=cdf,col sep=comma]{data/fig06_error_ecdf.csv};
+        table[x=value,y=cdf]{\ErrorECDF};
+      \addplot+[JBlue,solid,mark=none,line width=1.05pt]
+        coordinates {(\ErrorLastX,\ErrorLastCDF) (40,\ErrorLastCDF)};
       \addplot+[color=JBlue,only marks,mark=*,mark size=1.7pt,
         mark options={draw=JBlue,fill=JBlue}]
-        table[x=value,y=cdf,col sep=comma,
-          restrict expr to domain={\coordindex}{147:147}]
-        {data/fig06_error_ecdf.csv};
+        table[x=value,y=cdf,
+          restrict expr to domain={\coordindex}{\ErrorLastIndex:\ErrorLastIndex}]
+        {\ErrorECDF};
       \addplot+[jmech/threshold] coordinates {(20,0) (20,1)};
       \node[anchor=south east,text=JGray,align=right]
-        at (axis cs:36.0,0.16) {本文任务判定\\20 mm};
-      \node[anchor=north west,text=JGray] at (rel axis cs:0.025,0.91) {$n=148$};
+        at (axis cs:39.0,0.16) {本文任务判定\\20 mm};
+      \node[anchor=north west,text=JGray] at (rel axis cs:0.025,0.91) {$n=\ErrorN$};
       \node[panel label] at (rel axis cs:0.00,1.01) {(a)};
 
     \nextgroupplot[
-      xmin=0,xmax=10.5,xtick={0,2,4,6,8,10},
+      xmin=0,xmax=12,xtick={0,2,4,6,8,10,12},
       xlabel={最大经纬仪倾斜角 / $^{\circ}$},
       yticklabels=\empty
     ]
       \addplot+[JBlue,solid,mark=none,line width=1.05pt]
-        coordinates {(0,0) (0.5617459442334941,0)
-          (0.5617459442334941,0.006756756756756757)};
+        coordinates {(0,0) (\TiltFirstX,0)
+          (\TiltFirstX,\TiltFirstCDF)};
       \addplot+[JBlue,solid,mark=none,line width=1.05pt]
-        table[x=value,y=cdf,col sep=comma]{data/fig06_tilt_ecdf.csv};
+        table[x=value,y=cdf]{\TiltECDF};
+      \addplot+[JBlue,solid,mark=none,line width=1.05pt]
+        coordinates {(\TiltLastX,\TiltLastCDF) (12,\TiltLastCDF)};
       \addplot+[color=JBlue,only marks,mark=*,mark size=1.7pt,
         mark options={draw=JBlue,fill=JBlue}]
-        table[x=value,y=cdf,col sep=comma,
-          restrict expr to domain={\coordindex}{147:147}]
-        {data/fig06_tilt_ecdf.csv};
+        table[x=value,y=cdf,
+          restrict expr to domain={\coordindex}{\TiltLastIndex:\TiltLastIndex}]
+        {\TiltECDF};
       \addplot+[jmech/threshold] coordinates {(10,0) (10,1)};
       \node[anchor=south east,text=JGray,align=right]
         at (axis cs:9.75,0.16) {本文保守运输阈值\\（研究设定）10$^{\circ}$};
-      \node[anchor=north west,text=JGray] at (rel axis cs:0.025,0.91) {$n=148$};
+      \node[anchor=north west,text=JGray] at (rel axis cs:0.025,0.91) {$n=\TiltN$};
       \node[panel label] at (rel axis cs:0.00,1.01) {(b)};
 
     \nextgroupplot[
@@ -70,23 +96,23 @@
       yticklabels=\empty
     ]
       \addplot+[JGreen,solid,mark=none,line width=1.05pt]
-        coordinates {(-0.5,0) (-0.14667774544261647,0)
-          (-0.14667774544261647,0.006756756756756757)};
+        coordinates {(-0.5,0) (\MarginFirstX,0)
+          (\MarginFirstX,\MarginFirstCDF)};
       \addplot+[JGreen,solid,mark=none,line width=1.05pt]
-        table[x=value,y=cdf,col sep=comma]{data/fig06_margin_ecdf.csv};
+        table[x=value,y=cdf]{\MarginECDF};
+      \addplot+[JGreen,solid,mark=none,line width=1.05pt]
+        coordinates {(\MarginLastX,\MarginLastCDF) (10,\MarginLastCDF)};
       \addplot+[color=JGreen,only marks,mark=*,mark size=1.7pt,
         mark options={draw=JGreen,fill=JGreen}]
-        table[x=value,y=cdf,col sep=comma,
-          restrict expr to domain={\coordindex}{147:147}]
-        {data/fig06_margin_ecdf.csv};
+        table[x=value,y=cdf,
+          restrict expr to domain={\coordindex}{\MarginLastIndex:\MarginLastIndex}]
+        {\MarginECDF};
       \addplot+[JRed,only marks,mark=*,mark size=2.2pt]
-        table[x=value,y=cdf,col sep=comma,
-          restrict expr to domain={\coordindex}{0:0}]
-        {data/fig06_margin_ecdf.csv};
+        coordinates {(\MarginFirstX,\MarginFirstCDF)};
       \addplot+[jmech/threshold] coordinates {(0,0) (0,1)};
       \node[anchor=south west,text=JGray,align=left]
         at (axis cs:0.18,0.10) {0$^{\circ}$ 边界\\负值表示超过保守阈值};
-      \node[anchor=north west,text=JGray] at (rel axis cs:0.025,0.91) {$n=148$};
+      \node[anchor=north west,text=JGray] at (rel axis cs:0.025,0.91) {$n=\MarginN$};
       \node[panel label] at (rel axis cs:0.00,1.01) {(c)};
   \end{groupplot}
   \end{scope}

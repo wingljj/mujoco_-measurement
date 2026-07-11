@@ -29,7 +29,7 @@
       postaction={pattern={Lines[angle=45,distance=3pt,line width=0.35pt]},
         pattern color=JBlue},
       nodes near coords={\pgfmathprintnumber[fixed,precision=1,fixed zerofill]{\pgfplotspointmeta}},
-      nodes near coords style={anchor=south east,xshift=-0.3pt,yshift=1pt}
+      nodes near coords style={anchor=north east,xshift=-0.3pt,yshift=-1.5pt}
     ] table[x=method_cn,y=ik_rate_pct,col sep=comma]{data/fig05_ablation.csv};
     \addlegendentry{IK可达率}
 
@@ -38,12 +38,12 @@
       postaction={pattern={Lines[angle=-45,distance=3pt,line width=0.35pt]},
         pattern color=JRed},
       nodes near coords={\pgfmathprintnumber[fixed,precision=1,fixed zerofill]{\pgfplotspointmeta}},
-      nodes near coords style={anchor=south west,xshift=0.3pt,yshift=1pt}
+      nodes near coords style={anchor=north west,xshift=0.3pt,yshift=-1.5pt}
     ] table[x=method_cn,y=sim_rate_pct,col sep=comma]{data/fig05_ablation.csv};
     \addlegendentry{仿真成功率}
 
-    \node[anchor=north,text=JGray]
-      at (axis cs:纯位置,64) {$n=150$ 个目标};
+    \node[anchor=north,text=JGray,align=center]
+      at (axis cs:纯位置,64) {两项分母均为\\全部 150 个目标};
   \end{axis}
 \end{tikzpicture}
 \end{document}
