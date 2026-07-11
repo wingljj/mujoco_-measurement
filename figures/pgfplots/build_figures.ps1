@@ -60,6 +60,108 @@ function Invoke-NativeCommand {
     }
 }
 
+function Reset-StagingDirectory {
+    param(
+        [Parameter(Mandatory)]
+        [string]$StagingDirectory,
+
+        [Parameter(Mandatory)]
+        [string]$ExpectedParentDirectory
+    )
+
+    $parentPath = [System.IO.Path]::GetFullPath($ExpectedParentDirectory).TrimEnd('\', '/')
+    $stagingPath = [System.IO.Path]::GetFullPath($StagingDirectory)
+    $parentPrefix = "${parentPath}$([System.IO.Path]::DirectorySeparatorChar)"
+    if (-not $stagingPath.StartsWith($parentPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to reset staging directory outside its expected parent: $stagingPath"
+    }
+
+    if (Test-Path -LiteralPath $stagingPath) {
+        Remove-Item -LiteralPath $stagingPath -Recurse -Force
+    }
+    New-Item -ItemType Directory -Force -Path $stagingPath | Out-Null
+}
+
+function Publish-StagedFigures {
+    param(
+        [Parameter(Mandatory)]
+        [string[]]$Basenames,
+
+        [Parameter(Mandatory)]
+        [string]$StagingDirectory,
+
+        [Parameter(Mandatory)]
+        [string]$OutputDirectory
+    )
+
+    New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
+    $publicationToken = [guid]::NewGuid().ToString('N')
+    $pendingFiles = @()
+
+    try {
+        foreach ($basename in $Basenames) {
+            $sourcePath = Join-Path $StagingDirectory "${basename}.png"
+            $temporaryPath = Join-Path $OutputDirectory ".${basename}.${publicationToken}.tmp.png"
+            Copy-Item -LiteralPath $sourcePath -Destination $temporaryPath -Force
+            $pendingFiles += [pscustomobject]@{
+                TemporaryPath = $temporaryPath
+                FinalPath = Join-Path $OutputDirectory "${basename}.png"
+            }
+        }
+
+        foreach ($pendingFile in $pendingFiles) {
+            Move-Item `
+                -LiteralPath $pendingFile.TemporaryPath `
+                -Destination $pendingFile.FinalPath `
+                -Force
+        }
+    }
+    finally {
+        foreach ($pendingFile in $pendingFiles) {
+            Remove-Item -LiteralPath $pendingFile.TemporaryPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Invoke-AtomicFigureBatch {
+    param(
+        [Parameter(Mandatory)]
+        [string[]]$Basenames,
+
+        [Parameter(Mandatory)]
+        [string]$StagingDirectory,
+
+        [Parameter(Mandatory)]
+        [string]$StagingParentDirectory,
+
+        [Parameter(Mandatory)]
+        [string]$OutputDirectory,
+
+        [Parameter(Mandatory)]
+        [scriptblock]$BuildAction
+    )
+
+    Reset-StagingDirectory `
+        -StagingDirectory $StagingDirectory `
+        -ExpectedParentDirectory $StagingParentDirectory
+
+    foreach ($basename in $Basenames) {
+        & $BuildAction $basename $StagingDirectory
+    }
+
+    foreach ($basename in $Basenames) {
+        $stagedPngPath = Join-Path $StagingDirectory "${basename}.png"
+        if (-not (Test-Path -LiteralPath $stagedPngPath -PathType Leaf)) {
+            throw "Batch did not produce current staged PNG: $stagedPngPath"
+        }
+    }
+
+    Publish-StagedFigures `
+        -Basenames $Basenames `
+        -StagingDirectory $StagingDirectory `
+        -OutputDirectory $OutputDirectory
+}
+
 function Invoke-FigureBuild {
     param(
         [switch]$SkipDataPreparation
@@ -68,9 +170,10 @@ function Invoke-FigureBuild {
     $repoRoot = Get-RepositoryRoot
     $figureDir = Join-Path $repoRoot 'figures\pgfplots'
     $buildDir = Join-Path $figureDir 'build'
+    $stagingDir = Join-Path $buildDir 'word-staging'
     $wordOutputDir = Join-Path $repoRoot 'outputs\word_figures'
 
-    New-Item -ItemType Directory -Force -Path $buildDir, $wordOutputDir | Out-Null
+    New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
 
     if (-not $SkipDataPreparation) {
         Push-Location $repoRoot
@@ -86,48 +189,53 @@ function Invoke-FigureBuild {
 
     Push-Location $figureDir
     try {
-        foreach ($basename in Get-FigureBasenames) {
-            $texPath = Join-Path $figureDir "${basename}.tex"
-            $pdfPath = Join-Path $buildDir "${basename}.pdf"
-            $pngPrefix = Join-Path $buildDir $basename
-            $pngPath = "${pngPrefix}.png"
+        Invoke-AtomicFigureBatch `
+            -Basenames @(Get-FigureBasenames) `
+            -StagingDirectory $stagingDir `
+            -StagingParentDirectory $buildDir `
+            -OutputDirectory $wordOutputDir `
+            -BuildAction {
+                param($basename, $batchStagingDirectory)
 
-            if (-not (Test-Path -LiteralPath $texPath -PathType Leaf)) {
-                throw "Missing figure source: $texPath"
-            }
+                $texPath = Join-Path $figureDir "${basename}.tex"
+                $pdfPath = Join-Path $buildDir "${basename}.pdf"
+                $pngPrefix = Join-Path $batchStagingDirectory $basename
+                $pngPath = "${pngPrefix}.png"
 
-            Remove-Item -LiteralPath $pdfPath, $pngPath -Force -ErrorAction SilentlyContinue
-            Invoke-NativeCommand -Command 'latexmk' -Arguments @(
-                '-xelatex',
-                '-interaction=nonstopmode',
-                '-halt-on-error',
-                '-file-line-error',
-                "-outdir=$buildDir",
-                $texPath
-            )
-            if (-not (Test-Path -LiteralPath $pdfPath -PathType Leaf)) {
-                throw "latexmk completed without producing: $pdfPath"
-            }
+                if (-not (Test-Path -LiteralPath $texPath -PathType Leaf)) {
+                    throw "Missing figure source: $texPath"
+                }
 
-            Invoke-NativeCommand -Command 'pdfinfo' -Arguments @($pdfPath)
+                Remove-Item -LiteralPath $pdfPath, $pngPath -Force -ErrorAction SilentlyContinue
+                Invoke-NativeCommand -Command 'latexmk' -Arguments @(
+                    '-xelatex',
+                    '-interaction=nonstopmode',
+                    '-halt-on-error',
+                    '-file-line-error',
+                    "-outdir=$buildDir",
+                    $texPath
+                )
+                if (-not (Test-Path -LiteralPath $pdfPath -PathType Leaf)) {
+                    throw "latexmk completed without producing: $pdfPath"
+                }
 
-            $fontReport = (& pdffonts $pdfPath 2>&1 | Out-String)
-            if ($LASTEXITCODE -ne 0) {
-                throw "pdffonts failed with exit code ${LASTEXITCODE}: $pdfPath"
-            }
-            Write-Host $fontReport
-            if (-not (Test-PdfFontsEmbedded -PdfFontsOutput $fontReport)) {
-                throw "PDF contains a non-embedded font or no fonts: $pdfPath"
-            }
+                Invoke-NativeCommand -Command 'pdfinfo' -Arguments @($pdfPath)
 
-            Invoke-NativeCommand -Command 'pdftoppm' -Arguments @(
-                '-png', '-r', '600', '-singlefile', $pdfPath, $pngPrefix
-            )
-            if (-not (Test-Path -LiteralPath $pngPath -PathType Leaf)) {
-                throw "pdftoppm completed without producing: $pngPath"
-            }
+                $fontReport = (& pdffonts $pdfPath 2>&1 | Out-String)
+                if ($LASTEXITCODE -ne 0) {
+                    throw "pdffonts failed with exit code ${LASTEXITCODE}: $pdfPath"
+                }
+                Write-Host $fontReport
+                if (-not (Test-PdfFontsEmbedded -PdfFontsOutput $fontReport)) {
+                    throw "PDF contains a non-embedded font or no fonts: $pdfPath"
+                }
 
-            Copy-Item -LiteralPath $pngPath -Destination (Join-Path $wordOutputDir "${basename}.png") -Force
+                Invoke-NativeCommand -Command 'pdftoppm' -Arguments @(
+                    '-png', '-r', '600', '-singlefile', $pdfPath, $pngPrefix
+                )
+                if (-not (Test-Path -LiteralPath $pngPath -PathType Leaf)) {
+                    throw "pdftoppm completed without producing: $pngPath"
+                }
         }
     }
     finally {
