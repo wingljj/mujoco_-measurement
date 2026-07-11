@@ -22,6 +22,7 @@ import check_data_integrity
 parse_paper_rates = check_data_integrity.parse_paper_rates
 check_manuscript_theme = check_data_integrity.check_manuscript_theme
 check_figure_outputs = check_data_integrity.check_figure_outputs
+check_manuscript_figures = check_data_integrity.check_manuscript_figures
 
 FIGURE_BASENAMES = (
     "fig01_method_pipeline",
@@ -41,6 +42,20 @@ COMPLETE_THEODOLITE_THEME = """# 经纬仪测站转移
 本文未执行真实标定，也未建立运输倾角到测量结果的映射。
 历史复现路径为 kuka_kr20/kuka_kr20_cup_transport.xml。
 """
+COMPLETE_MANUSCRIPT_FIGURES = """
+![图1](../outputs/word_figures/fig01_method_pipeline.png)
+本图展示简化刚性负载代理，不代表真实经纬仪。
+![图2](../outputs/paper_figures/rendered_transport_snapshots.png)
+![图3](../outputs/word_figures/fig02_workspace_multiview.png)
+该轨迹对应简化刚性负载代理，不代表真实经纬仪的动力学。
+![图4](../outputs/figures/trajectory_3d_render.png)
+![图5](../outputs/word_figures/fig03_transport_sequence.png)
+![图6](../outputs/word_figures/fig04_case_study.png)
+![图7](../outputs/word_figures/fig05_ablation_comparison.png)
+![图8](../outputs/word_figures/fig06_error_tilt_margin.png)
+![图9](../outputs/word_figures/fig07_dynamic_metrics.png)
+![图10](../outputs/word_figures/fig08_baseline_comparison.png)
+"""
 
 
 class DataIntegrityParserTests(unittest.TestCase):
@@ -52,6 +67,7 @@ class DataIntegrityParserTests(unittest.TestCase):
         csv_path.parent.mkdir(parents=True)
         manuscript_path.write_text(
             COMPLETE_THEODOLITE_THEME
+            + COMPLETE_MANUSCRIPT_FIGURES
             + """
 | 变体 | IK 规划 | 仿真成功 | 成功率 | 结论 |
 |---|---|---|---|---|
@@ -467,6 +483,46 @@ generic cup transport
         errors = check_manuscript_theme(manuscript)
 
         self.assertTrue(any("10°" in error for error in errors), errors)
+
+
+class ManuscriptFigureTests(unittest.TestCase):
+    def test_complete_ten_figure_order_and_adjacent_disclaimers_pass(self):
+        self.assertEqual(check_manuscript_figures(COMPLETE_MANUSCRIPT_FIGURES), [])
+
+    def test_missing_restored_image_is_reported(self):
+        manuscript = COMPLETE_MANUSCRIPT_FIGURES.replace(
+            "![图2](../outputs/paper_figures/rendered_transport_snapshots.png)\n", ""
+        )
+
+        errors = check_manuscript_figures(manuscript)
+
+        self.assertTrue(
+            any("rendered_transport_snapshots.png" in error for error in errors), errors
+        )
+
+    def test_wrong_image_order_is_reported(self):
+        manuscript = COMPLETE_MANUSCRIPT_FIGURES.replace(
+            "![图5](../outputs/word_figures/fig03_transport_sequence.png)\n"
+            "![图6](../outputs/word_figures/fig04_case_study.png)",
+            "![图6](../outputs/word_figures/fig04_case_study.png)\n"
+            "![图5](../outputs/word_figures/fig03_transport_sequence.png)",
+        )
+
+        errors = check_manuscript_figures(manuscript)
+
+        self.assertTrue(any("顺序" in error for error in errors), errors)
+
+    def test_each_restored_image_requires_adjacent_proxy_disclaimer(self):
+        manuscript = COMPLETE_MANUSCRIPT_FIGURES.replace(
+            "该轨迹对应简化刚性负载代理，不代表真实经纬仪的动力学。",
+            "该轨迹展示仿真运动。",
+        )
+
+        errors = check_manuscript_figures(manuscript)
+
+        self.assertTrue(any("trajectory_3d_render.png" in error for error in errors), errors)
+        self.assertTrue(any("简化刚性负载代理" in error for error in errors), errors)
+        self.assertTrue(any("不代表真实经纬仪" in error for error in errors), errors)
 
 
 class FigureOutputTests(unittest.TestCase):

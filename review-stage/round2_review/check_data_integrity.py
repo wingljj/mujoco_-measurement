@@ -69,6 +69,23 @@ FIGURE_BASENAMES = (
     "fig07_dynamic_metrics",
     "fig08_baseline_comparison",
 )
+EXPECTED_MANUSCRIPT_IMAGES = (
+    "fig01_method_pipeline.png",
+    "rendered_transport_snapshots.png",
+    "fig02_workspace_multiview.png",
+    "trajectory_3d_render.png",
+    "fig03_transport_sequence.png",
+    "fig04_case_study.png",
+    "fig05_ablation_comparison.png",
+    "fig06_error_tilt_margin.png",
+    "fig07_dynamic_metrics.png",
+    "fig08_baseline_comparison.png",
+)
+RESTORED_MANUSCRIPT_IMAGES = (
+    "rendered_transport_snapshots.png",
+    "trajectory_3d_render.png",
+)
+RESTORED_FIGURE_DISCLAIMERS = ("简化刚性负载代理", "不代表真实经纬仪")
 
 
 def parse_paper_rates(manuscript: str) -> dict[str, float]:
@@ -299,6 +316,48 @@ def check_manuscript_theme(path_or_text: Path | str) -> list[str]:
     return errors
 
 
+def check_manuscript_figures(path_or_text: Path | str) -> list[str]:
+    """Return errors for manuscript image order and restored-figure boundaries."""
+    manuscript = _read_path_or_text(path_or_text)
+    lines = manuscript.splitlines()
+    image_pattern = re.compile(r"!\[[^\]]*\]\(([^)\s]+)")
+    images: list[tuple[str, int]] = []
+    for line_number, line in enumerate(lines):
+        for match in image_pattern.finditer(line):
+            images.append((Path(match.group(1)).name, line_number))
+
+    actual_names = [name for name, _line_number in images]
+    errors: list[str] = []
+    for name in RESTORED_MANUSCRIPT_IMAGES:
+        if name not in actual_names:
+            errors.append(f"正文缺少恢复图：{name}")
+    if actual_names != list(EXPECTED_MANUSCRIPT_IMAGES):
+        errors.append("正文图片顺序必须与规定的 10 幅图顺序完全一致。")
+
+    for name in RESTORED_MANUSCRIPT_IMAGES:
+        positions = [line_number for image_name, line_number in images if image_name == name]
+        if not positions:
+            continue
+        line_number = positions[0]
+        adjacent_lines: list[str] = []
+        for direction in (-1, 1):
+            index = line_number + direction
+            while 0 <= index < len(lines) and not lines[index].strip():
+                index += direction
+            if 0 <= index < len(lines):
+                adjacent_lines.append(lines[index])
+        adjacent_text = " ".join(adjacent_lines)
+        missing_phrases = [
+            phrase for phrase in RESTORED_FIGURE_DISCLAIMERS if phrase not in adjacent_text
+        ]
+        if missing_phrases:
+            errors.append(
+                f"恢复图 {name} 的相邻正文缺少："
+                + "、".join(f"‘{phrase}’" for phrase in missing_phrases)
+            )
+    return errors
+
+
 def check_figure_outputs(root: Path) -> list[str]:
     """Return errors for missing or empty managed Word PNG and vector PDF files."""
     errors: list[str] = []
@@ -403,6 +462,9 @@ def main(argv: list[str] | None = None) -> int:
     if not args.rates_only:
         for error in check_manuscript_theme(manuscript_path):
             print(f"{RED}✗ manuscript theme: {error}{RESET}")
+            failed = True
+        for error in check_manuscript_figures(manuscript_path):
+            print(f"{RED}✗ manuscript figure: {error}{RESET}")
             failed = True
         for error in check_figure_outputs(root):
             print(f"{RED}✗ figure output: {error}{RESET}")
