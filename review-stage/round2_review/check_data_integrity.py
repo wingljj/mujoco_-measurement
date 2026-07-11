@@ -71,9 +71,9 @@ FIGURE_BASENAMES = (
 )
 EXPECTED_MANUSCRIPT_IMAGES = (
     "fig01_method_pipeline.png",
-    "rendered_transport_snapshots.png",
+    "rendered_transport_snapshots_title_cropped.png",
     "fig02_workspace_multiview.png",
-    "trajectory_3d_render.png",
+    "trajectory_3d_render_title_cropped.png",
     "fig03_transport_sequence.png",
     "fig04_case_study.png",
     "fig05_ablation_comparison.png",
@@ -82,8 +82,8 @@ EXPECTED_MANUSCRIPT_IMAGES = (
     "fig08_baseline_comparison.png",
 )
 RESTORED_MANUSCRIPT_IMAGES = (
-    "rendered_transport_snapshots.png",
-    "trajectory_3d_render.png",
+    "rendered_transport_snapshots_title_cropped.png",
+    "trajectory_3d_render_title_cropped.png",
 )
 RESTORED_FIGURE_DISCLAIMERS = ("简化刚性负载代理", "不代表真实经纬仪")
 

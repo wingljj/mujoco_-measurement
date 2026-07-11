@@ -45,10 +45,10 @@ COMPLETE_THEODOLITE_THEME = """# 经纬仪测站转移
 COMPLETE_MANUSCRIPT_FIGURES = """
 ![图1](../outputs/word_figures/fig01_method_pipeline.png)
 本图展示简化刚性负载代理，不代表真实经纬仪。
-![图2](../outputs/paper_figures/rendered_transport_snapshots.png)
+![图2](../outputs/paper_figures/rendered_transport_snapshots_title_cropped.png)
 ![图3](../outputs/word_figures/fig02_workspace_multiview.png)
 该轨迹对应简化刚性负载代理，不代表真实经纬仪的动力学。
-![图4](../outputs/figures/trajectory_3d_render.png)
+![图4](../outputs/figures/trajectory_3d_render_title_cropped.png)
 ![图5](../outputs/word_figures/fig03_transport_sequence.png)
 ![图6](../outputs/word_figures/fig04_case_study.png)
 ![图7](../outputs/word_figures/fig05_ablation_comparison.png)
@@ -491,14 +491,14 @@ class ManuscriptFigureTests(unittest.TestCase):
 
     def test_missing_restored_image_is_reported(self):
         manuscript = COMPLETE_MANUSCRIPT_FIGURES.replace(
-            "![图2](../outputs/paper_figures/rendered_transport_snapshots.png)\n", ""
+            "![图2](../outputs/paper_figures/rendered_transport_snapshots_title_cropped.png)\n", ""
         )
 
         errors = check_manuscript_figures(manuscript)
 
         self.assertTrue(
             any(
-                "正文缺少恢复图：rendered_transport_snapshots.png" in error
+                "正文缺少恢复图：rendered_transport_snapshots_title_cropped.png" in error
                 for error in errors
             ),
             errors,
@@ -524,34 +524,34 @@ class ManuscriptFigureTests(unittest.TestCase):
 
         errors = check_manuscript_figures(manuscript)
 
-        self.assertTrue(any("trajectory_3d_render.png" in error for error in errors), errors)
+        self.assertTrue(any("trajectory_3d_render_title_cropped.png" in error for error in errors), errors)
         self.assertTrue(any("简化刚性负载代理" in error for error in errors), errors)
         self.assertTrue(any("不代表真实经纬仪" in error for error in errors), errors)
 
     def test_image_inside_html_comment_does_not_count(self):
         manuscript = COMPLETE_MANUSCRIPT_FIGURES.replace(
-            "![图2](../outputs/paper_figures/rendered_transport_snapshots.png)",
-            "<!-- ![图2](../outputs/paper_figures/rendered_transport_snapshots.png) -->",
+            "![图2](../outputs/paper_figures/rendered_transport_snapshots_title_cropped.png)",
+            "<!-- ![图2](../outputs/paper_figures/rendered_transport_snapshots_title_cropped.png) -->",
         )
 
         errors = check_manuscript_figures(manuscript)
 
-        self.assertIn("正文缺少恢复图：rendered_transport_snapshots.png", errors)
+        self.assertIn("正文缺少恢复图：rendered_transport_snapshots_title_cropped.png", errors)
 
     def test_image_inside_fenced_code_does_not_count(self):
         manuscript = COMPLETE_MANUSCRIPT_FIGURES.replace(
-            "![图4](../outputs/figures/trajectory_3d_render.png)",
-            "```markdown\n![图4](../outputs/figures/trajectory_3d_render.png)\n```",
+            "![图4](../outputs/figures/trajectory_3d_render_title_cropped.png)",
+            "```markdown\n![图4](../outputs/figures/trajectory_3d_render_title_cropped.png)\n```",
         )
 
         errors = check_manuscript_figures(manuscript)
 
-        self.assertIn("正文缺少恢复图：trajectory_3d_render.png", errors)
+        self.assertIn("正文缺少恢复图：trajectory_3d_render_title_cropped.png", errors)
 
     def test_inline_code_cannot_supply_image_or_disclaimer(self):
         coded_image = COMPLETE_MANUSCRIPT_FIGURES.replace(
-            "![图2](../outputs/paper_figures/rendered_transport_snapshots.png)",
-            "`![图2](../outputs/paper_figures/rendered_transport_snapshots.png)`",
+            "![图2](../outputs/paper_figures/rendered_transport_snapshots_title_cropped.png)",
+            "`![图2](../outputs/paper_figures/rendered_transport_snapshots_title_cropped.png)`",
         )
         coded_disclaimer = COMPLETE_MANUSCRIPT_FIGURES.replace(
             "该轨迹对应简化刚性负载代理，不代表真实经纬仪的动力学。",
@@ -563,42 +563,42 @@ class ManuscriptFigureTests(unittest.TestCase):
 
         self.assertTrue(
             any(
-                "正文缺少恢复图：rendered_transport_snapshots.png" in error
+                "正文缺少恢复图：rendered_transport_snapshots_title_cropped.png" in error
                 for error in image_errors
             ),
             image_errors,
         )
         self.assertTrue(
-            any("trajectory_3d_render.png" in error for error in disclaimer_errors),
+            any("trajectory_3d_render_title_cropped.png" in error for error in disclaimer_errors),
             disclaimer_errors,
         )
 
     def test_image_inside_indented_code_does_not_count(self):
         manuscript = COMPLETE_MANUSCRIPT_FIGURES.replace(
-            "![图4](../outputs/figures/trajectory_3d_render.png)",
-            "    ![图4](../outputs/figures/trajectory_3d_render.png)",
+            "![图4](../outputs/figures/trajectory_3d_render_title_cropped.png)",
+            "    ![图4](../outputs/figures/trajectory_3d_render_title_cropped.png)",
         )
 
         errors = check_manuscript_figures(manuscript)
 
-        self.assertIn("正文缺少恢复图：trajectory_3d_render.png", errors)
+        self.assertIn("正文缺少恢复图：trajectory_3d_render_title_cropped.png", errors)
 
     def test_image_inside_blockquote_fence_does_not_count(self):
         manuscript = COMPLETE_MANUSCRIPT_FIGURES.replace(
-            "![图2](../outputs/paper_figures/rendered_transport_snapshots.png)",
+            "![图2](../outputs/paper_figures/rendered_transport_snapshots_title_cropped.png)",
             "> ```markdown\n"
-            "> ![图2](../outputs/paper_figures/rendered_transport_snapshots.png)\n"
+            "> ![图2](../outputs/paper_figures/rendered_transport_snapshots_title_cropped.png)\n"
             "> ```",
         )
 
         errors = check_manuscript_figures(manuscript)
 
-        self.assertIn("正文缺少恢复图：rendered_transport_snapshots.png", errors)
+        self.assertIn("正文缺少恢复图：rendered_transport_snapshots_title_cropped.png", errors)
 
     def test_rendered_image_inside_plain_blockquote_still_counts(self):
         manuscript = COMPLETE_MANUSCRIPT_FIGURES.replace(
-            "![图2](../outputs/paper_figures/rendered_transport_snapshots.png)",
-            "> ![图2](../outputs/paper_figures/rendered_transport_snapshots.png)",
+            "![图2](../outputs/paper_figures/rendered_transport_snapshots_title_cropped.png)",
+            "> ![图2](../outputs/paper_figures/rendered_transport_snapshots_title_cropped.png)",
         )
 
         self.assertEqual(check_manuscript_figures(manuscript), [])
