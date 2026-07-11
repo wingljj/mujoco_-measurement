@@ -65,6 +65,34 @@ class PriorityIKUtilityTests(unittest.TestCase):
             ],
         )
 
+    def test_summary_safety_metrics_include_failed_executed_simulations(self):
+        rows = [
+            {
+                "planned_success": True,
+                "sim_success": True,
+                "final_error_m": 0.01,
+                "max_tilt_deg": 2.0,
+                "plan_time_s": 0.2,
+                "plan_nfev": 45,
+            },
+            {
+                "planned_success": True,
+                "sim_success": False,
+                "final_error_m": 0.03,
+                "max_tilt_deg": 20.0,
+                "plan_time_s": 0.3,
+                "plan_nfev": 60,
+            },
+        ]
+
+        summary = summarize_results(rows)
+
+        self.assertEqual(summary["sim_success"], 1)
+        self.assertAlmostEqual(summary["mean_final_error_m"], 0.02)
+        self.assertEqual(summary["max_final_error_m"], 0.03)
+        self.assertAlmostEqual(summary["mean_max_tilt_deg"], 11.0)
+        self.assertEqual(summary["max_max_tilt_deg"], 20.0)
+
 
 if __name__ == "__main__":
     unittest.main()

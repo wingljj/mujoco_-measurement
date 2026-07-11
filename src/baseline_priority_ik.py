@@ -183,8 +183,16 @@ def summarize_results(results: list[dict]) -> dict:
     total = len(results)
     planned = sum(bool(row["planned_success"]) for row in results)
     simulated = sum(row["sim_success"] is True for row in results)
-    errors = [row["final_error_m"] for row in results if row["sim_success"] is True]
-    tilts = [row["max_tilt_deg"] for row in results if row["sim_success"] is True]
+    errors = [
+        float(row["final_error_m"])
+        for row in results
+        if np.isfinite(float(row["final_error_m"]))
+    ]
+    tilts = [
+        float(row["max_tilt_deg"])
+        for row in results
+        if np.isfinite(float(row["max_tilt_deg"]))
+    ]
     plan_times = [row["plan_time_s"] for row in results]
     nfevs = [row["plan_nfev"] for row in results]
     return {

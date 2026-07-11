@@ -337,9 +337,22 @@ def plot_success_metrics_dashboard(
     ablation_rows: List[Dict[str, object]],
     out_dir: Path,
 ) -> None:
-    success_rows = [row for row in rows if row["success"]]
-    errors = np.asarray([float(row["final_error_m"]) * 1000 for row in success_rows], dtype=float)
-    tilts = np.asarray([float(row["max_tilt_deg"]) for row in success_rows], dtype=float)
+    errors = np.asarray(
+        [
+            float(row["final_error_m"]) * 1000
+            for row in rows
+            if np.isfinite(float(row["final_error_m"]))
+        ],
+        dtype=float,
+    )
+    tilts = np.asarray(
+        [
+            float(row["max_tilt_deg"])
+            for row in rows
+            if np.isfinite(float(row["max_tilt_deg"]))
+        ],
+        dtype=float,
+    )
 
     fig = plt.figure(figsize=(8.4, 4.4), facecolor="white")
     gs = gridspec.GridSpec(1, 3, width_ratios=[0.8, 1.0, 1.0], figure=fig)

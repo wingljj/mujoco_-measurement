@@ -38,7 +38,7 @@ Dear Editor,
 
 > 收紧 `tilt-limit-deg` 到 5° 或 10° 重跑 ablation，观察此时 tilt_barrier 与 no_tilt_barrier 的差别。
 
-**Author's Response**：我们将 `tilt_limit_deg` 收紧到 10°，对两种变体各运行 3 个随机种子 × 50 个目标。两者均取得 147/150（98.0%）仿真成功，平均/全局最大倾角均为 1.17°/5.11°。该阴性结果表明 10° 仍未分离两种配置，因此我们将其表述为“收紧阈值对照”，并明确说明若要量化屏障激活后的效果，仍需更低阈值或更具挑战性的目标集。
+**Author's Response**：我们将 `tilt_limit_deg` 收紧到 10°，对两种变体各运行 3 个随机种子 × 50 个目标。两者均取得 147/150（98.0%）仿真成功；在所有实际执行的仿真中，平均/全局最大倾角均为 1.23°/10.15°。两种变体的规划倾角峰值均为 5.14°，因而 10° 规划屏障未被激活；仿真峰值达 10.15° 还表明规划倾角不能保证动态跟踪不越界。我们因此将其如实表述为阴性结果，并说明若要量化屏障激活后的效果，需使用低于 5.14° 的规划阈值或更具挑战性的目标集。
 
 **Location in Revised Manuscript**：§4.4，表 4。
 
@@ -66,13 +66,13 @@ Dear Editor,
 
 > 在 §1 与 §2 之间新增相关工作，覆盖约束 IK、优先级 IK、DLS/SNS、pouring、sloshing 和 TOPP。
 
-**Author's Response**：我们新增六个相关工作子节和 13 条参考文献，并将本文定位为对已有容器运输、sloshing 抑制和时间参数化工作的增量实证补充。所有引用均有对应的文末条目；无法核验的提示词文献未被写入。
+**Author's Response**：我们新增六个相关工作子节和 13 条参考文献，并将本文定位为对已有容器运输、sloshing 抑制和时间参数化工作的增量实证补充。在引用核验中，提示词指定的 Muchacho & Ratliff (2018)、Do et al. (2014) 和“Chen et al. (2021) reactive pouring”无法通过 Crossref/OpenAlex 确认精确条目；“Moriello et al. (2018 IROS)”的可核验 IROS 条目实际为 Biagiotti et al. (2018)。为避免引用虚构或归属错误，我们以可核验的 Sekine et al. (2016)、Moriello et al. (2018, *Control Engineering Practice*)、Biagiotti et al. (2018, IROS) 和 Huang et al. (2021) 覆盖同一主题。所有正文引用均有对应的文末条目。
 
 **Location in Revised Manuscript**：§1.5.1–§1.5.6；§11 参考文献。
 
 **Related Commit**：`5b51673 review0604_round3_p1_1_related_work`。
 
-**Verified?**：[x]
+**Verified?**：[x]（已完成主题覆盖；无法核验的指定条目已以可核验文献替代）
 
 ---
 
@@ -80,7 +80,7 @@ Dear Editor,
 
 > 至少选择 1 个外部对手（例如优先级 IK）运行相同 150 个目标。
 
-**Author's Response**：我们实现了位置主任务和竖直姿态零空间次任务的优先级 IK，并在相同随机种子与 150 个目标上比较。优先级 IK 的仿真成功率为 94.0%，完整方法为 98.0%；两者差异为 4 个百分点，未达预设 5% 触发阈值。修订稿同时报告误差、倾角和规划时间。
+**Author's Response**：我们实现了位置主任务和竖直姿态零空间次任务的优先级 IK，并在相同随机种子与 150 个匹配目标上比较。匹配结果为 141 个两者均成功、6 个仅完整方法成功、0 个仅优先级 IK 成功、3 个两者均失败。精确双侧 McNemar 二项检验得 p = 0.03125，因此修订稿不再以“差异小于 5%”代替显著性检验，而是报告完整方法在当前匹配样本上具有较高仿真成功率。修订稿同时报告所有已执行仿真的误差、倾角和规划时间。
 
 **Location in Revised Manuscript**：§4.5，表 5。对应的散点图已作为修订包图形产物 `fig08_baseline_comparison.png` 导出。
 

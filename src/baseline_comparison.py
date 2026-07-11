@@ -394,8 +394,16 @@ def summarize_results(results: List[dict], variant_name: str) -> dict:
     sim_ok = sum(1 for r in results if r["sim_success"] is True)
     sim_planned = sum(1 for r in results if r["planned_success"] is True)
 
-    errors = [r["final_error_m"] for r in results if r["sim_success"]]
-    tilts = [r["max_tilt_deg"] for r in results if r["sim_success"]]
+    errors = [
+        float(r["final_error_m"])
+        for r in results
+        if np.isfinite(float(r["final_error_m"]))
+    ]
+    tilts = [
+        float(r["max_tilt_deg"])
+        for r in results
+        if np.isfinite(float(r["max_tilt_deg"]))
+    ]
     plan_times = [r["plan_time_s"] for r in results]
     plan_nfevs = [r["plan_nfev"] for r in results]
 

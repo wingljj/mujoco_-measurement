@@ -174,7 +174,7 @@ s(t) = 3t^2 - 2t^3,\quad t \in [0,1]
 ### 4.3 分析
 
 **发现 1：默认权重下倾角屏障未被激活**
-数据表明，在默认权重下，移除 tilt_barrier 后的 IK 可达率和仿真成功率均与完整方法相同，分别为 148/150 和 147/150。orientation 项（权重 0.90）已将平均和峰值倾角压到 1.17° 和 5.11°，远低于 45° 触发阈值。因此，本实验条件下不能据此主张倾角屏障对常规工况有独立增益；其激活条件在 §4.4 中另行检验。
+数据表明，在默认权重下，移除 tilt_barrier 后的 IK 可达率和仿真成功率均与完整方法相同，分别为 148/150 和 147/150。在所有实际执行的仿真中，orientation 项（权重 0.90）对应的平均和峰值倾角为 1.23° 和 10.15°，仍低于 45° 触发阈值。因此，本实验条件下不能据此主张倾角屏障对常规工况有独立增益；其激活条件在 §4.4 中另行检验。
 
 **发现 2：纯位置变体主要收窄 IK 可达空间**
 在本实验条件下，position_only 变体仅对 45/150 个目标生成可行规划，IK 可达率为 30%。然而，这 45 条可规划轨迹全部通过仿真执行，因此数据不支持“纯位置 IK 导致跟踪失败”的解读。更准确的结论是，缺少姿态、连续性与限位残差主要降低了规划可达性，相关边界条件在 §4.4 中进一步考察。
@@ -192,13 +192,13 @@ s(t) = 3t^2 - 2t^3,\quad t \in [0,1]
 
 | 变体 | IK 可达 | 仿真成功 | 平均最大倾角（°） | 全局最大倾角（°） |
 |---|---|---|---|---|
-| full_tight10 | 148/150 | 147/150（98.0%） | 1.17 | 5.11 |
-| no_barrier_tight10 | 148/150 | 147/150（98.0%） | 1.17 | 5.11 |
+| full_tight10 | 148/150 | 147/150（98.0%） | 1.23 | 10.15 |
+| no_barrier_tight10 | 148/150 | 147/150（98.0%） | 1.23 | 10.15 |
 
 > 数据来源：outputs/ablation_study_tight10/ablation_summary.csv。
 
 **发现 4：10° 阈值仍未分离两种变体的表现**
-在收紧阈值的条件下，两种变体的 IK 可达率、仿真成功率和倾角统计仍基本相同，成功率差为 0 个百分点。即使将阈值收紧到 10°，tilt_barrier 的独立贡献仍不显著，说明 orientation 项已提供足够的倾角保护，而 tilt_barrier 在当前权重和目标分布下主要是保险丝性质的冗余约束。若需量化其激活后的效果，还需使用低于观测峰值的阈值或更具挑战性的目标集。
+在收紧阈值的条件下，两种变体的 IK 可达率、仿真成功率和倾角统计仍基本相同，成功率差为 0 个百分点。两种变体的规划轨迹峰值倾角均仅为 5.14°，因而 10° 规划屏障未被激活；但仿真执行的峰值达 10.15°，说明小规划倾角并不保证动态跟踪不越界。因此，本实验仅支持“当前规划轨迹未触发 tilt_barrier”，不支持将 orientation 解读为已提供充分的动态倾角保护。若需量化屏障激活后的效果，还需使用低于 5.14° 的规划阈值或更具挑战性的目标集。
 
 ### 4.5 外部方法对比
 
@@ -206,12 +206,12 @@ s(t) = 3t^2 - 2t^3,\quad t \in [0,1]
 
 | 方法 | IK 可达率 | 仿真成功率 | 平均误差（mm） | 平均最大倾角（°） | 平均规划时间（s） |
 |---|---:|---:|---:|---:|---:|
-| full_method（本文） | 98.7% | 98.0% | 4.91 | 1.17 | 0.182 |
-| priority_ik | 100.0% | 94.0% | 10.79 | 6.17 | 0.037 |
+| full_method（本文） | 98.7% | 98.0% | 5.11 | 1.23 | 0.182 |
+| priority_ik | 100.0% | 94.0% | 11.42 | 6.45 | 0.037 |
 
 > 数据来源：outputs/ablation_study/ablation_summary.csv 和 outputs/external_baselines/priority_ik_summary.csv；两种方法使用相同的 3 个随机种子与 150 个目标。
 
-full_method 将位置、姿态、连续性、限位中心化和倾角屏障作为软权重残差联合优化，priority_ik 则先求解位置任务，再将竖直姿态任务投影到位置 Jacobian 的零空间。后者使用显式伪逆，平均规划时间仅为 0.037 s，低于 `least_squares` 的 0.182 s；但其平均误差和平均最大倾角分别增至 10.79 mm 和 6.17°。两者的仿真成功率相差 4 个百分点，未达预设的 5% 显著差异触发阈值，因此在此任务上总体表现相近。本文方法的实证优势主要体现在较低的跟踪误差和倾角，其中连续性与限位控制的独立作用仍需额外对照。priority_ik 在无 tilt_barrier 时仍达到 94.0% 仿真成功率，也与 §4.4 中“默认工况下屏障独立贡献有限”的观察一致。
+full_method 将位置、姿态、连续性、限位中心化和倾角屏障作为软权重残差联合优化，priority_ik 则先求解位置任务，再将竖直姿态任务投影到位置 Jacobian 的零空间。后者使用显式伪逆，平均规划时间为 0.037 s，低于 `least_squares` 的 0.182 s；但在所有实际执行的仿真中，其平均误差和平均最大倾角分别为 11.42 mm 和 6.45°，高于 full_method 的 5.11 mm 和 1.23°。匹配结果为 141 个目标两者均成功、6 个仅 full_method 成功、0 个仅 priority_ik 成功、3 个两者均失败；精确双侧 McNemar 二项检验得 p = 0.03125。因此，尽管绝对成功率差为 4 个百分点，当前匹配样本仍支持 full_method 具有较高的仿真成功率。该差异不能单独归因于任一残差，连续性与限位控制的独立作用仍需额外对照。
 
 ## 5. 权重灵敏度分析
 
@@ -392,7 +392,7 @@ python src/baseline_comparison.py --targets 50 --seeds 3 --out outputs/ablation_
 
 # 增强实验 (Round 2)
 python src/enhanced_experiments.py --mode all --targets 50 --seeds 10 --out outputs/round2_experiments
-python src/enhanced_experiments.py --mode sensitivity --targets 50 --out outputs/round2_experiments
+python src/enhanced_experiments.py --mode sensitivity --targets 30 --with-sim --out outputs/round2_experiments
 python src/enhanced_experiments.py --mode expanded --targets 80 --out outputs/round2_experiments
 python src/enhanced_experiments.py --mode dynamic --targets 30 --out outputs/round2_experiments
 
