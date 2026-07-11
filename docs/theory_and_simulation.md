@@ -5,13 +5,39 @@
 本文对 KUKA KR20 机械臂持杯运输任务中不同约束逆运动学 (IK)  formulations 进行了**系统化的实证比较研究**。任务要求末端到达目标位置，同时保持杯体竖直姿态以降低倾洒风险。我们在 MuJoCo 物理仿真环境中系统性地比较了四种 IK 变体，分析了每个残差项的必要性，并进行了权重灵敏度、多区域工作空间和动态代理指标的全面评估。
 
 本文的核心贡献不是提出全新算法，而是：
-1. 首次对持杯运输场景下的约束 IK 残差项进行了**完整的消融分析**，严格证明了每个残差项对成功执行的不可或缺性
+1. 系统评估持杯运输场景下的约束 IK 残差组合，量化不同变体的规划与仿真表现
 2. 通过 **10 种子统计评估** 建立了可信的性能基准
 3. 通过权重灵敏度分析证明了方法的**参数鲁棒性**
 4. 引入了**动态倾洒代理指标**（加速度、加加速度、角速度）以补充纯倾角判据
 5. 按工作空间区域分析了方法的**失效模式**
 
 ![方法流程](../outputs/paper_figures/method_pipeline_overview.png)
+
+## 1.5 相关工作 (Related Work)
+
+### 1.5.1 约束 IK 与优先级 IK
+
+任务优先级逆运动学（task-priority inverse kinematics）通过零空间投影或层级优化，在满足高优先级任务后处理次级目标 [Chiaverini, 1997]。Baerlocher 与 Boulic 将该思路扩展到任意数量的严格优先级，Escande 等人则以层级二次规划实现快速在线运动生成 [Baerlocher and Boulic, 2004; Escande et al., 2014]。本文的多残差目标可视为这类框架的软权重实现，但各项之间不存在严格优先级。
+
+### 1.5.2 阻尼最小二乘与 SNS
+
+阻尼最小二乘（Damped Least Squares, DLS）通过对伪逆近似加入阻尼，提高奇异位形附近的数值稳定性 [Buss, 2004]。零空间饱和法（Saturation in the Null Space, SNS）进一步在冗余机器人中处理硬关节约束 [Flacco et al., 2015]。本文使用 SciPy `least_squares` 的信赖域反射（trust-region reflective）求解器直接处理有界非线性最小二乘，实现较简，但不具备 SNS 的严格任务优先级保证。
+
+### 1.5.3 液体容器运输与倾注
+
+已有工作通过轨迹规划与液体仿真研究机器人容器转运，表明容器姿态和运动学量需要联合考虑 [Sekine et al., 2016]。Moriello 等人建立了液体晃动模型并设计抑制轨迹，Biagiotti 等人则在机器人遥操任务中引入前馈晃动抑制 [Moriello et al., 2018; Biagiotti et al., 2018]。在倾注任务中，自监督学习已被用于获得可泛化的流量控制技能 [Huang et al., 2021]。与显式 sloshing 模型或流量控制不同，本文将 orientation 残差和软倾角屏障统一到同一最小二乘目标中，仅评估运输阶段的代理风险。
+
+### 1.5.4 液体晃动动力学
+
+液体晃动（sloshing）是受容器几何、液位、粘度与外部激励共同影响的自由液面动力学问题 [Ibrahim, 2005]。Faltinsen 与 Timokha 系统讨论了线性与非线性晃动、模态响应及与结构运动的耦合 [Faltinsen and Timokha, 2009]。本文不求解流固耦合或真实自由液面，而仅使用倾角、加速度和角速度作为一阶运动学代理指标。
+
+### 1.5.5 时间参数化
+
+路径的时间参数化需在速度和加速度约束下确定可执行时序；Kunz 与 Stilman 研究了此类条件下的时间最优轨迹生成 [Kunz and Stilman, 2012]。TOPP-RA 使用可达性分析计算时间最优路径参数化，并能处理一类广义二阶约束 [Pham and Pham, 2018]。本文仅使用 cubic smoothstep 完成固定时长的平滑插值，未进行时间最优化；对时间敏感的工业场景需要结合 TOPP-RA 等方法。
+
+### 1.5.6 本文的定位
+
+机器人液体容器运输、晃动抑制与自动倾注均已有明确先例，因此本文不主张提出全新的 upright-glass transport 框架。本文的增量贡献是在统一的 KUKA KR20 持杯运输任务下，对五项残差进行对照消融，并用 §4.4 的收紧倾角阈值实验检验 tilt_barrier 的激活边界。此外，本文还提供五区域工作空间分解和动态代理指标，用于暴露单一静态倾角指标难以表征的部署边界。
 
 ## 2. 机械臂与杯体建模
 
@@ -308,3 +334,31 @@ python src/enhanced_experiments.py --mode dynamic --targets 30 --out outputs/rou
 python src/plot_results.py --input outputs/experiment_001/results.csv --out outputs/figures
 python src/paper_figures.py --model kuka_kr20/kuka_kr20_cup_transport.xml --results outputs/experiment_001/results.csv --trajectories outputs/experiment_001/trajectories.npz --out outputs/paper_figures
 ```
+
+## 11. 参考文献
+
+[Chiaverini, 1997] S. Chiaverini, "Singularity-robust task-priority redundancy resolution for real-time kinematic control of robot manipulators," *IEEE Transactions on Robotics and Automation*, vol. 13, no. 3, pp. 398–410, 1997. DOI: 10.1109/70.585902.
+
+[Baerlocher and Boulic, 2004] P. Baerlocher and R. Boulic, "An inverse kinematics architecture enforcing an arbitrary number of strict priority levels," *The Visual Computer*, vol. 20, no. 6, pp. 402–417, 2004. DOI: 10.1007/s00371-004-0244-4.
+
+[Escande et al., 2014] A. Escande, N. Mansard, and P.-B. Wieber, "Hierarchical quadratic programming: Fast online humanoid-robot motion generation," *The International Journal of Robotics Research*, vol. 33, no. 7, pp. 1006–1028, 2014. DOI: 10.1177/0278364914521306.
+
+[Buss, 2004] S. R. Buss, "Introduction to inverse kinematics with Jacobian transpose, pseudoinverse and damped least squares methods," University of California, San Diego, Tech. Rep., 2004.
+
+[Flacco et al., 2015] F. Flacco, A. De Luca, and O. Khatib, "Control of redundant robots under hard joint constraints: Saturation in the null space," *IEEE Transactions on Robotics*, vol. 31, no. 3, pp. 637–654, 2015. DOI: 10.1109/TRO.2015.2418582.
+
+[Sekine et al., 2016] A. Sekine, S. Ishibashi, H. Sugiuchi, and S. Koshizuka, "Trajectory planning to transfer liquid container and simulation for robot," *Journal of the Robotics Society of Japan*, vol. 34, no. 10, pp. 711–722, 2016. DOI: 10.7210/jrsj.34.711.
+
+[Moriello et al., 2018] L. Moriello, L. Biagiotti, C. Melchiorri, and A. Paoli, "Manipulating liquids with robots: A sloshing-free solution," *Control Engineering Practice*, vol. 78, pp. 129–141, 2018. DOI: 10.1016/j.conengprac.2018.06.018.
+
+[Biagiotti et al., 2018] L. Biagiotti, D. Chiaravalli, L. Moriello, and C. Melchiorri, "A plug-in feed-forward control for sloshing suppression in robotic teleoperation tasks," in *2018 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)*, pp. 5855–5860, 2018. DOI: 10.1109/IROS.2018.8593962.
+
+[Huang et al., 2021] Y. Huang, J. Wilches, and Y. Sun, "Robot gaining accurate pouring skills through self-supervised learning and generalization," *Robotics and Autonomous Systems*, vol. 136, art. 103692, 2021. DOI: 10.1016/j.robot.2020.103692.
+
+[Ibrahim, 2005] R. A. Ibrahim, *Liquid Sloshing Dynamics: Theory and Applications*. Cambridge, UK: Cambridge University Press, 2005.
+
+[Faltinsen and Timokha, 2009] O. M. Faltinsen and A. N. Timokha, *Sloshing*. Cambridge, UK: Cambridge University Press, 2009.
+
+[Kunz and Stilman, 2012] T. Kunz and M. Stilman, "Time-optimal trajectory generation for path following with bounded acceleration and velocity," in *Robotics: Science and Systems VIII*, 2012. DOI: 10.15607/RSS.2012.VIII.027.
+
+[Pham and Pham, 2018] H. Pham and Q.-C. Pham, "A new approach to time-optimal path parameterization based on reachability analysis," *IEEE Transactions on Robotics*, vol. 34, no. 3, pp. 645–659, 2018. DOI: 10.1109/TRO.2018.2819195.
