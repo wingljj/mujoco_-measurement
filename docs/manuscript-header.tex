@@ -1,0 +1,38 @@
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{etoolbox}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{microtype}
+\usepackage{setspace}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{unicode-math}
+\setmainfont{Times New Roman}
+\setsansfont{Arial}
+\setmonofont{Consolas}[Scale=0.86]
+\setCJKmainfont{SimSun}
+\setCJKsansfont{SimHei}
+\setmathfont{STIX Two Math}
+\geometry{a4paper,top=2.5cm,bottom=2.4cm,left=2.4cm,right=2.4cm}
+\setstretch{1.32}
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0pt}
+\setlength{\emergencystretch}{2em}
+\setlist{nosep,leftmargin=2em}
+\captionsetup{font=small,labelsep=quad,justification=centering}
+\titleformat{\section}{\centering\bfseries\zihao{4}}{\thesection}{0.75em}{}
+\titleformat{\subsection}{\bfseries\zihao{-4}}{\thesubsection}{0.75em}{}
+\titlespacing*{\section}{0pt}{1.4ex plus .4ex}{0.8ex}
+\titlespacing*{\subsection}{0pt}{1.1ex plus .3ex}{0.5ex}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[C]{\small 面向经纬仪测站转移的机械臂约束逆运动学}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\AtBeginEnvironment{longtable}{\zihao{5}\renewcommand{\arraystretch}{1.18}}
