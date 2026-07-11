@@ -1,0 +1,94 @@
+\documentclass[tikz,border=0pt]{standalone}
+\usepackage{jmechplots}
+
+\pgfplotsset{
+  ecdf panel/.style={
+    jmech/base,
+    scale only axis,width=4.05cm,height=4.10cm,
+    ymin=0,ymax=1.02,ytick={0,0.2,0.4,0.6,0.8,1.0},
+    const plot,
+    clip=false
+  }
+}
+
+\begin{document}
+\begin{tikzpicture}[
+  every node/.style={font=\fontsize{8}{9.6}\selectfont},
+  panel label/.style={anchor=south west,font=\fontsize{8}{9.6}\selectfont}
+]
+  \path[use as bounding box] (0,0) rectangle (15,6);
+  \begin{scope}[shift={(1.10cm,1.05cm)}]
+  \begin{groupplot}[
+    group style={group size=3 by 1,horizontal sep=0.75cm},
+    ecdf panel
+  ]
+    \nextgroupplot[
+      xmin=0,xmax=37,xtick={0,10,20,30},
+      xlabel={最终位置误差 / mm},
+      ylabel={累积比例}
+    ]
+      \addplot+[JBlue,solid,mark=none,line width=1.05pt]
+        coordinates {(0,0) (1.2034797167491618,0)
+          (1.2034797167491618,0.006756756756756757)};
+      \addplot+[JBlue,solid,mark=none,line width=1.05pt]
+        table[x=value,y=cdf,col sep=comma]{data/fig06_error_ecdf.csv};
+      \addplot+[color=JBlue,only marks,mark=*,mark size=1.7pt,
+        mark options={draw=JBlue,fill=JBlue}]
+        table[x=value,y=cdf,col sep=comma,
+          restrict expr to domain={\coordindex}{147:147}]
+        {data/fig06_error_ecdf.csv};
+      \addplot+[jmech/threshold] coordinates {(20,0) (20,1.02)};
+      \node[anchor=south east,text=JGray,align=right]
+        at (axis cs:19.4,0.20) {本文任务判定\\20 mm};
+      \node[anchor=north west,text=JGray] at (rel axis cs:0.025,0.91) {$n=148$};
+      \node[panel label] at (rel axis cs:0.00,1.01) {(a)};
+
+    \nextgroupplot[
+      xmin=0,xmax=10.5,xtick={0,2,4,6,8,10},
+      xlabel={最大经纬仪倾斜角 / $^{\circ}$},
+      yticklabels=\empty
+    ]
+      \addplot+[JBlue,solid,mark=none,line width=1.05pt]
+        coordinates {(0,0) (0.5617459442334941,0)
+          (0.5617459442334941,0.006756756756756757)};
+      \addplot+[JBlue,solid,mark=none,line width=1.05pt]
+        table[x=value,y=cdf,col sep=comma]{data/fig06_tilt_ecdf.csv};
+      \addplot+[color=JBlue,only marks,mark=*,mark size=1.7pt,
+        mark options={draw=JBlue,fill=JBlue}]
+        table[x=value,y=cdf,col sep=comma,
+          restrict expr to domain={\coordindex}{147:147}]
+        {data/fig06_tilt_ecdf.csv};
+      \addplot+[jmech/threshold] coordinates {(10,0) (10,1.02)};
+      \node[anchor=south east,text=JGray,align=right]
+        at (axis cs:9.75,0.16) {本文保守运输阈值\\（研究设定）10$^{\circ}$};
+      \node[anchor=north west,text=JGray] at (rel axis cs:0.025,0.91) {$n=148$};
+      \node[panel label] at (rel axis cs:0.00,1.01) {(b)};
+
+    \nextgroupplot[
+      xmin=-0.5,xmax=10,xtick={0,2,4,6,8,10},
+      xlabel={倾角裕度（$10^{\circ}-$倾角）/ $^{\circ}$},
+      yticklabels=\empty
+    ]
+      \addplot+[JGreen,solid,mark=none,line width=1.05pt]
+        coordinates {(-0.5,0) (-0.14667774544261647,0)
+          (-0.14667774544261647,0.006756756756756757)};
+      \addplot+[JGreen,solid,mark=none,line width=1.05pt]
+        table[x=value,y=cdf,col sep=comma]{data/fig06_margin_ecdf.csv};
+      \addplot+[color=JGreen,only marks,mark=*,mark size=1.7pt,
+        mark options={draw=JGreen,fill=JGreen}]
+        table[x=value,y=cdf,col sep=comma,
+          restrict expr to domain={\coordindex}{147:147}]
+        {data/fig06_margin_ecdf.csv};
+      \addplot+[JRed,only marks,mark=*,mark size=2.2pt]
+        table[x=value,y=cdf,col sep=comma,
+          restrict expr to domain={\coordindex}{0:0}]
+        {data/fig06_margin_ecdf.csv};
+      \addplot+[jmech/threshold] coordinates {(0,0) (0,1.02)};
+      \node[anchor=south west,text=JGray,align=left]
+        at (axis cs:0.18,0.10) {0$^{\circ}$ 边界\\负值表示超过保守阈值};
+      \node[anchor=north west,text=JGray] at (rel axis cs:0.025,0.91) {$n=148$};
+      \node[panel label] at (rel axis cs:0.00,1.01) {(c)};
+  \end{groupplot}
+  \end{scope}
+\end{tikzpicture}
+\end{document}
