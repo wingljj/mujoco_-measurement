@@ -18,7 +18,8 @@
 \pgfplotsset{
   workspace/common/.style={
     jmech/base,
-    width=4.63cm,height=4.65cm,
+    width=4.63cm,height=4.00cm,
+    axis equal image,
     xmin=-1.05,xmax=1.95,
     tick label style={font=\fontsize{8}{9.6}\selectfont},
     label style={font=\fontsize{8}{9.6}\selectfont},
@@ -41,7 +42,7 @@
 \begin{document}
 \begin{tikzpicture}[every node/.style={font=\fontsize{8}{9.6}\selectfont}]
   \path[use as bounding box] (0,0) rectangle (15,6);
-  \begin{scope}[shift={(0.37,1.75)}]
+  \begin{scope}[shift={(2.18,2.12)}]
   \begin{groupplot}[
     group style={group size=3 by 1,horizontal sep=0.25cm},
     workspace/common
@@ -65,6 +66,8 @@
       \addlegendentry{远距离区}
       \addplot+[black,solid,mark=triangle*,mark size=2.5pt,only marks]
         coordinates {(0,0)};
+      \node[anchor=north east,align=center,text=black]
+        at (axis cs:0.15,-0.15) {机械臂\\基座};
 
     \nextgroupplot[
       title={\strut 正视投影},xlabel={$X$ / m},ylabel={$Z$ / m},
@@ -80,7 +83,7 @@
 
     \nextgroupplot[
       title={\strut 侧视投影},xlabel={$Y$ / m},ylabel={$Z$ / m},
-      xmin=-1.05,xmax=1.05,ymin=-0.08,ymax=2.0
+      xmin=-1.50,xmax=1.50,ymin=-0.08,ymax=2.0
     ]
       \WorkspacePlot{标准区}{region standard}{y}{z}
       \WorkspacePlot{宽方位角区}{region wide}{y}{z}
