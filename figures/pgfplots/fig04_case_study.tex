@@ -31,12 +31,14 @@
       legend pos=south west,
       legend style={cells={anchor=west},row sep=-1pt}
     ]
-      \addplot+[JGray,densely dashed,mark=none,line width=1.0pt]
-        table[x=desired_x,y=desired_z,col sep=comma]{data/fig04_trajectory.csv};
-      \addlegendentry{期望轨迹}
       \addplot+[JBlue,solid,mark=none,line width=1.05pt]
         table[x=x,y=z,col sep=comma]{data/fig04_trajectory.csv};
       \addlegendentry{实际轨迹}
+      \addplot+[JGray,only marks,mark=diamond,mark repeat=5,mark phase=1,
+        mark size=1.8pt,
+        mark options={draw=JGray,fill=white,line width=0.85pt}]
+        table[x=desired_x,y=desired_z,col sep=comma]{data/fig04_trajectory.csv};
+      \addlegendentry{期望轨迹}
       \addplot+[JBlue,only marks,mark=o,mark size=2.7pt,
         mark options={draw=JBlue,fill=white,line width=0.9pt}]
         table[x=x,y=z,col sep=comma,restrict expr to domain={\coordindex}{0:0}]
@@ -98,6 +100,27 @@
         {20 mm任务判定\\本文任务判定\\（纵轴外）};
       \node[panel label] at (rel axis cs:0.01,0.99) {(d)};
   \end{groupplot}
+  \begin{axis}[
+    jmech/base,
+    at={(group c2r1.north west)},anchor=south west,
+    xshift=0cm,yshift=0.35cm,
+    scale only axis,
+    width=3.40cm,height=0.72cm,
+    xmin=0,xmax=44,ymin=-0.0042,ymax=0.0052,
+    xtick={0,20,40},ytick={-0.004,0,0.004},
+    yticklabels={$-0.004$,0,$0.004$},
+    scaled ticks=false,
+    title={$q_4$、$q_6$局部放大 / rad},
+    title style={font=\fontsize{8}{9.6}\selectfont,yshift=-2pt},
+    tick label style={font=\fontsize{8}{9.6}\selectfont},
+    axis background/.style={fill=white},
+    every axis plot/.append style={line width=0.9pt}
+  ]
+    \addplot+[black,dotted,mark=none]
+      table[x=sample,y=q4,col sep=comma]{data/fig04_joints.csv};
+    \addplot+[JGray,loosely dashdotted,mark=none,line width=1.15pt]
+      table[x=sample,y=q6,col sep=comma]{data/fig04_joints.csv};
+  \end{axis}
   \end{scope}
 \end{tikzpicture}
 \end{document}
