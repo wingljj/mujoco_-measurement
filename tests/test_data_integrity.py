@@ -194,6 +194,24 @@ class FigureOutputTests(unittest.TestCase):
             self.assertTrue(any("fig06_error_tilt_margin.pdf" in error for error in errors), errors)
             self.assertTrue(any("空文件" in error for error in errors), errors)
 
+    def test_unexpected_fig_outputs_are_reported_but_unrelated_files_are_allowed(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            self._create_outputs(root)
+            png_directory = root / "outputs" / "word_figures"
+            pdf_directory = root / "figures" / "pgfplots" / "build"
+            (png_directory / "fig09_legacy.png").write_bytes(b"png")
+            (pdf_directory / "fig09_legacy.pdf").write_bytes(b"pdf")
+            (png_directory / "README.txt").write_text("notes", encoding="utf-8")
+            (pdf_directory / "build.log").write_text("log", encoding="utf-8")
+
+            errors = check_figure_outputs(root)
+
+            self.assertEqual(len(errors), 2, errors)
+            self.assertTrue(any("fig09_legacy.png" in error for error in errors), errors)
+            self.assertTrue(any("fig09_legacy.pdf" in error for error in errors), errors)
+            self.assertTrue(all("意外" in error for error in errors), errors)
+
 
 if __name__ == "__main__":
     unittest.main()

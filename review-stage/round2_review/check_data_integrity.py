@@ -147,6 +147,7 @@ def check_manuscript_theme(path_or_text: Path | str) -> list[str]:
 def check_figure_outputs(root: Path) -> list[str]:
     """Return errors for missing or empty managed Word PNG and vector PDF files."""
     errors: list[str] = []
+    expected_basenames = set(FIGURE_BASENAMES)
     output_locations = (
         (root / "outputs" / "word_figures", ".png"),
         (root / "figures" / "pgfplots" / "build", ".pdf"),
@@ -159,6 +160,10 @@ def check_figure_outputs(root: Path) -> list[str]:
                 errors.append(f"缺少图件输出：{relative_path}")
             elif not path.is_file() or path.stat().st_size == 0:
                 errors.append(f"图件输出为空文件：{relative_path}")
+    for directory, suffix in output_locations:
+        for path in directory.glob(f"fig*{suffix}"):
+            if path.stem not in expected_basenames:
+                errors.append(f"意外图件输出：{path.relative_to(root)}")
     return errors
 
 
