@@ -7,8 +7,11 @@
 \pgfplotstablecreatecol[
   create col/assign/.code={%
     \edef\RowMethod{\thisrow{method_cn}}%
+    \def\SelectorCode{nan}%
     \expandafter\IfStrEq\expandafter{\RowMethod}{本文方法}
-      {\def\SelectorCode{1}}{\def\SelectorCode{2}}%
+      {\def\SelectorCode{1}}{}%
+    \expandafter\IfStrEq\expandafter{\RowMethod}{优先级IK}
+      {\def\SelectorCode{2}}{}%
     \pgfkeyslet{/pgfplots/table/create col/next content}\SelectorCode
   }
 ]{method_code}\BaselineData
@@ -16,15 +19,60 @@
 \pgfplotstablecreatecol[
   create col/assign/.code={%
     \edef\RowMethod{\thisrow{method_cn}}%
+    \edef\RowError{\thisrow{error_mm}}%
+    \edef\RowTilt{\thisrow{tilt_deg}}%
+    \def\SelectorCode{nan}%
+    \IfStrEq{\RowError}{nan}{}{%
+      \IfStrEq{\RowTilt}{nan}{}{%
+        \expandafter\IfStrEq\expandafter{\RowMethod}{本文方法}
+          {\def\SelectorCode{1}}{}%
+        \expandafter\IfStrEq\expandafter{\RowMethod}{优先级IK}
+          {\def\SelectorCode{2}}{}%
+      }%
+    }%
+    \pgfkeyslet{/pgfplots/table/create col/next content}\SelectorCode
+  }
+]{finite_code}\BaselineData
+
+\pgfplotstablecreatecol[
+  create col/assign/.code={%
+    \edef\RowMethod{\thisrow{method_cn}}%
     \edef\RowSuccess{\thisrow{sim_success}}%
+    \edef\RowError{\thisrow{error_mm}}%
+    \edef\RowTilt{\thisrow{tilt_deg}}%
     \def\SelectorCode{0}%
-    \expandafter\IfStrEq\expandafter{\RowSuccess}{False}{%
-      \expandafter\IfStrEq\expandafter{\RowMethod}{本文方法}
-        {\def\SelectorCode{1}}{\def\SelectorCode{2}}%
+    \IfStrEq{\RowError}{nan}{}{%
+      \IfStrEq{\RowTilt}{nan}{}{%
+        \expandafter\IfStrEq\expandafter{\RowSuccess}{False}{%
+          \expandafter\IfStrEq\expandafter{\RowMethod}{本文方法}
+            {\def\SelectorCode{1}}{}%
+          \expandafter\IfStrEq\expandafter{\RowMethod}{优先级IK}
+            {\def\SelectorCode{2}}{}%
+        }{}%
+      }%
     }{}%
     \pgfkeyslet{/pgfplots/table/create col/next content}\SelectorCode
   }
 ]{failure_code}\BaselineData
+
+\newcount\FullFiniteCount
+\newcount\PriorityFiniteCount
+\newcount\FullFailureCount
+\newcount\PriorityFailureCount
+\pgfplotstableforeachcolumnelement{finite_code}\of{\BaselineData}\as\RowFiniteCode{%
+  \IfStrEq{\RowFiniteCode}{1}{\global\advance\FullFiniteCount by 1}{}%
+  \IfStrEq{\RowFiniteCode}{2}{\global\advance\PriorityFiniteCount by 1}{}%
+  \pgfplotstablegetelem{\pgfplotstablerow}{failure_code}\of{\BaselineData}%
+  \edef\RowFailureCode{\pgfplotsretval}%
+  \IfStrEq{\RowFailureCode}{1}{\global\advance\FullFailureCount by 1}{}%
+  \IfStrEq{\RowFailureCode}{2}{\global\advance\PriorityFailureCount by 1}{}%
+}
+\edef\FullFiniteN{\the\FullFiniteCount}
+\edef\PriorityFiniteN{\the\PriorityFiniteCount}
+\edef\FullFailureN{\the\FullFailureCount}
+\edef\PriorityFailureN{\the\PriorityFailureCount}
+\typeout{FIG08_COUNTS full_finite=\FullFiniteN, priority_finite=\PriorityFiniteN,
+  full_failed=\FullFailureN, priority_failed=\PriorityFailureN}
 
 \begin{document}
 \begin{tikzpicture}[every node/.style={font=\fontsize{8}{9.6}\selectfont}]
@@ -81,7 +129,8 @@
     \node[anchor=south,font=\fontsize{8}{9.6}\selectfont,
       fill=white,inner sep=1pt,align=center]
       at (rel axis cs:0.5,1.025)
-      {有限仿真记录：本文方法148，优先级IK150\\$\times$ 表示失败记录};
+      {有限仿真记录：本文方法\FullFiniteN，优先级IK\PriorityFiniteN\\
+        $\times$ 表示失败记录};
   \end{axis}
 \end{tikzpicture}
 \end{document}

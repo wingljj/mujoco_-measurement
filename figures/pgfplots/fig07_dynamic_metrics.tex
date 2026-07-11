@@ -1,28 +1,69 @@
 \documentclass[tikz,border=0pt]{standalone}
 \usepackage{jmechplots}
+\usepackage{xstring}
 
 \pgfplotstableread[col sep=comma]{data/fig07_histograms.csv}\HistogramData
 
-\newcommand{\HistogramMedian}[2]{%
-  \pgfplotstablegetelem{#2}{median}\of{\HistogramData}%
-  \expandafter\edef\csname #1Median\endcsname{\pgfplotsretval}%
-}
-\HistogramMedian{Accel}{0}
-\HistogramMedian{Jerk}{10}
-\HistogramMedian{MaxAng}{19}
-\HistogramMedian{AvgAng}{28}
+\pgfplotstablecreatecol[
+  create col/assign/.code={%
+    \edef\MetricName{\thisrow{metric}}%
+    \def\SelectorCode{0}%
+    \expandafter\IfStrEq\expandafter{\MetricName}{accel}
+      {\def\SelectorCode{1}}{}%
+    \expandafter\IfStrEq\expandafter{\MetricName}{max_jerk}
+      {\def\SelectorCode{2}}{}%
+    \expandafter\IfStrEq\expandafter{\MetricName}{max_ang_vel}
+      {\def\SelectorCode{3}}{}%
+    \expandafter\IfStrEq\expandafter{\MetricName}{avg_ang_vel}
+      {\def\SelectorCode{4}}{}%
+    \pgfkeyslet{/pgfplots/table/create col/next content}\SelectorCode
+  }
+]{metric_code}\HistogramData
 
-\newcommand{\DrawHistogramBins}[4]{%
-  \pgfplotsinvokeforeach{#1,...,#2}{%
-    \pgfplotstablegetelem{##1}{left}\of{\HistogramData}\xdef\BinLeft{\pgfplotsretval}
-    \pgfplotstablegetelem{##1}{right}\of{\HistogramData}\xdef\BinRight{\pgfplotsretval}
-    \pgfplotstablegetelem{##1}{count}\of{\HistogramData}\xdef\BinCount{\pgfplotsretval}
+\newcount\HistogramBinCount
+\newcount\HistogramSampleCount
+\newcommand{\DeriveHistogramMeta}[2]{%
+  \HistogramBinCount=0
+  \HistogramSampleCount=0
+  \pgfplotstableforeachcolumnelement{metric_code}\of{\HistogramData}\as\RowMetricCode{%
+    \IfStrEq{\RowMetricCode}{#1}{%
+      \pgfplotstablegetelem{\pgfplotstablerow}{median}\of{\HistogramData}%
+      \expandafter\xdef\csname #2Median\endcsname{\pgfplotsretval}%
+      \pgfplotstablegetelem{\pgfplotstablerow}{count}\of{\HistogramData}%
+      \pgfmathtruncatemacro{\RowSampleCount}{\pgfplotsretval}%
+      \global\advance\HistogramBinCount by 1
+      \global\advance\HistogramSampleCount by \RowSampleCount
+    }{}%
+  }%
+  \expandafter\xdef\csname #2BinN\endcsname{\the\HistogramBinCount}%
+  \expandafter\xdef\csname #2SampleN\endcsname{\the\HistogramSampleCount}%
+}
+\DeriveHistogramMeta{1}{Accel}
+\DeriveHistogramMeta{2}{Jerk}
+\DeriveHistogramMeta{3}{MaxAng}
+\DeriveHistogramMeta{4}{AvgAng}
+\typeout{FIG07_META accel_bins=\AccelBinN, accel_sum=\AccelSampleN,
+  accel_median=\AccelMedian}
+\typeout{FIG07_META jerk_bins=\JerkBinN, jerk_sum=\JerkSampleN,
+  jerk_median=\JerkMedian}
+\typeout{FIG07_META max_ang_bins=\MaxAngBinN, max_ang_sum=\MaxAngSampleN,
+  max_ang_median=\MaxAngMedian}
+\typeout{FIG07_META avg_ang_bins=\AvgAngBinN, avg_ang_sum=\AvgAngSampleN,
+  avg_ang_median=\AvgAngMedian}
+
+\newcommand{\DrawHistogramBins}[3]{%
+  \pgfplotstableforeachcolumnelement{metric_code}\of{\HistogramData}\as\RowMetricCode{%
+    \IfStrEq{\RowMetricCode}{#1}{%
+    \pgfplotstablegetelem{\pgfplotstablerow}{left}\of{\HistogramData}\xdef\BinLeft{\pgfplotsretval}
+    \pgfplotstablegetelem{\pgfplotstablerow}{right}\of{\HistogramData}\xdef\BinRight{\pgfplotsretval}
+    \pgfplotstablegetelem{\pgfplotstablerow}{count}\of{\HistogramData}\xdef\BinCount{\pgfplotsretval}
     \edef\DrawOneBin{%
-      \noexpand\path[draw=#3,fill=#3!#4,line width=0.45pt,
+      \noexpand\path[draw=#2,fill=#2!#3,line width=0.45pt,
         postaction={pattern={Lines[angle=45,distance=4pt,line width=0.25pt]},
-          pattern color=#3!70}]
+          pattern color=#2!70}]
         (axis cs:\BinLeft,0) rectangle (axis cs:\BinRight,\BinCount);}%
     \DrawOneBin
+    }{}%
   }%
 }
 
@@ -54,7 +95,7 @@
       xmin=0.5,xmax=3.0,xtick={0.5,1.0,1.5,2.0,2.5,3.0},
       xlabel={最大加速度 / $\mathrm{m/s^2}$}
     ]
-      \DrawHistogramBins{0}{9}{JBlue}{30}
+      \DrawHistogramBins{1}{JBlue}{30}
       \addplot+[black,densely dashed,mark=none,line width=0.8pt]
         coordinates {(\AccelMedian,0) (\AccelMedian,19.5)};
       \node[median label,anchor=north west]
@@ -67,7 +108,7 @@
       xtick={1,10,100},xticklabels={$10^{0}$,$10^{1}$,$10^{2}$},
       xlabel={最大 Jerk / $\mathrm{m/s^3}$}
     ]
-      \DrawHistogramBins{10}{18}{JRed}{25}
+      \DrawHistogramBins{2}{JRed}{25}
       \addplot+[black,densely dashed,mark=none,line width=0.8pt]
         coordinates {(\JerkMedian,0) (\JerkMedian,19.5)};
       \node[median label,anchor=north west]
@@ -81,7 +122,7 @@
       xticklabels={$10^{-4}$,$10^{-3}$,$10^{-2}$,$10^{-1}$,$10^{0}$},
       xlabel={最大角速度 / $\mathrm{rad/s}$}
     ]
-      \DrawHistogramBins{19}{27}{JGreen}{26}
+      \DrawHistogramBins{3}{JGreen}{26}
       \addplot+[black,densely dashed,mark=none,line width=0.8pt]
         coordinates {(\MaxAngMedian,0) (\MaxAngMedian,19.5)};
       \node[median label,anchor=north west]
@@ -95,7 +136,7 @@
       xticklabels={$10^{-5}$,$10^{-4}$,$10^{-3}$,$10^{-2}$,$10^{-1}$},
       xlabel={平均角速度 / $\mathrm{rad/s}$}
     ]
-      \DrawHistogramBins{28}{36}{JGold}{27}
+      \DrawHistogramBins{4}{JGold}{27}
       \addplot+[black,densely dashed,mark=none,line width=0.8pt]
         coordinates {(\AvgAngMedian,0) (\AvgAngMedian,19.5)};
       \node[median label,anchor=north west]
