@@ -35,6 +35,21 @@ LEGACY_THEME_TERMS = (
     "sloshing",
 )
 ALLOWED_HISTORICAL_CUP_PATH = "kuka_kr20/kuka_kr20_cup_transport.xml"
+CLAUSE_NEGATIONS = ("不是", "不代表", "并非", "不能", "不得", "不应", "没有", "未")
+TRANSPORT_SPEC_TERMS = (
+    "制造商",
+    "厂家",
+    "行业",
+    "标准",
+    "测量精度",
+    "精度限值",
+    "允许倾角",
+    "工作容差",
+)
+CALIBRATION_ACTIONS = ("开展", "完成", "执行", "进行", "实施", "获得", "验证", "采用")
+CALIBRATION_TERMS = ("真实标定", "现场校准")
+MAPPING_ACTIONS = ("建立", "给出", "得到", "标定", "拟合", "实现", "完成")
+MAPPING_TARGETS = ("测量结果", "测量误差", "精度", "映射")
 RIGID_PROXY_PHRASES = ("刚性负载代理", "刚性负载代理仿真")
 STABLE_MEASUREMENT_PHRASES = (
     "到达目标位姿并稳定后测量",
@@ -113,6 +128,32 @@ def _read_path_or_text(path_or_text: Path | str) -> str:
     return path_or_text
 
 
+def _split_clauses(text: str) -> list[str]:
+    return [
+        clause.strip()
+        for clause in re.split(r"[。！？!?；;，,\n]+", text)
+        if clause.strip()
+    ]
+
+
+def _is_negated_clause(clause: str) -> bool:
+    if any(negation in clause for negation in CLAUSE_NEGATIONS):
+        return True
+    direct_targets = (
+        *TRANSPORT_SPEC_TERMS,
+        *CALIBRATION_TERMS,
+        *MAPPING_ACTIONS,
+        *MAPPING_TARGETS,
+        "仪器",
+        "倾角",
+    )
+    return any(
+        f"{negation}{target}" in clause
+        for negation in ("非", "无")
+        for target in direct_targets
+    )
+
+
 def check_manuscript_theme(path_or_text: Path | str) -> list[str]:
     """Return manuscript-theme errors, including line numbers for legacy terms."""
     manuscript = _read_path_or_text(path_or_text)
@@ -149,6 +190,7 @@ def check_manuscript_theme(path_or_text: Path | str) -> list[str]:
         for statement in re.split(r"(?<=[。！？!?])|\n+", manuscript)
         if statement.strip()
     ]
+    clauses = _split_clauses(manuscript)
     valid_transport_boundary = any(
         "10°" in statement
         and "保守运输" in statement
@@ -160,26 +202,10 @@ def check_manuscript_theme(path_or_text: Path | str) -> list[str]:
         for statement in statements
     )
     contradictory_transport_boundary = any(
-        "10°" in statement
-        and (
-            re.search(
-                r"(?:制造商|厂家)[^。；\n]{0,12}(?:规定|要求)"
-                r"[^。；\n]{0,12}10°",
-                statement,
-            )
-            or re.search(
-                r"10°\s*(?:是|为|作为)[^。；\n]{0,12}"
-                r"(?:制造商|厂家|行业)[^。；\n]{0,10}"
-                r"(?:阈值|指标|标准|容差|要求)",
-                statement,
-            )
-            or re.search(
-                r"10°(?:\s*(?:是|为|作为|源自)|[^。；\n]{0,12}用作)"
-                r"[^。；\n]{0,20}测量精度",
-                statement,
-            )
-        )
-        for statement in statements
+        "10°" in clause
+        and any(term in clause for term in TRANSPORT_SPEC_TERMS)
+        and not _is_negated_clause(clause)
+        for clause in clauses
     )
     if not valid_transport_boundary or contradictory_transport_boundary:
         errors.append(
@@ -193,22 +219,13 @@ def check_manuscript_theme(path_or_text: Path | str) -> list[str]:
         for statement in statements
     )
     contradictory_position_boundary = any(
-        re.search(r"20\s*mm", statement, flags=re.IGNORECASE)
-        and (
-            re.search(
-                r"(?:制造商|厂家|行业)[^。；\n]{0,12}(?:规定|要求)"
-                r"[^。；\n]{0,12}20\s*mm",
-                statement,
-                flags=re.IGNORECASE,
-            )
-            or re.search(
-                r"20\s*mm\s*(?:是|为|作为)\s*"
-                r"(?:通用|行业|制造商|厂家|测量精度)",
-                statement,
-                flags=re.IGNORECASE,
-            )
+        re.search(r"20\s*mm", clause, flags=re.IGNORECASE)
+        and any(
+            term in clause
+            for term in ("制造商", "厂家", "行业", "通用", "标准", "测量精度")
         )
-        for statement in statements
+        and not _is_negated_clause(clause)
+        for clause in clauses
     )
     if not valid_position_boundary or contradictory_position_boundary:
         errors.append("正文缺少‘20 mm 为任务特定位置判据’的边界。")
@@ -228,21 +245,22 @@ def check_manuscript_theme(path_or_text: Path | str) -> list[str]:
         and measurement_mapping_pattern.search(statement)
         for statement in statements
     )
-    positive_calibration_claim = re.search(
-        r"(?:完成了|进行了|开展了|执行了|已完成|已进行|已经完成|已经进行|"
-        r"采用了)[^。；\n]{0,20}(?:(?:真实|实物|现场)[^。；\n]{0,6})?"
-        r"(?:标定|校准)",
-        manuscript,
+    positive_calibration_claim = any(
+        any(term in clause for term in CALIBRATION_TERMS)
+        and any(action in clause for action in CALIBRATION_ACTIONS)
+        and not _is_negated_clause(clause)
+        for clause in clauses
     )
-    positive_mapping_claim = re.search(
-        r"(?:建立了|已建立|已经建立|完成了|实现了|已实现)[^。；\n]{0,80}"
-        r"(?:测量误差映射|测量结果映射|倾角[^。；\n]{0,50}"
-        r"(?:测量误差|测量结果)[^。；\n]{0,20}(?:映射|模型))",
-        manuscript,
+    positive_mapping_claim = any(
+        "倾角" in clause
+        and any(action in clause for action in MAPPING_ACTIONS)
+        and any(target in clause for target in MAPPING_TARGETS)
+        and not _is_negated_clause(clause)
+        for clause in clauses
     )
-    if not coherent_measurement_boundary or positive_calibration_claim is not None:
+    if not coherent_measurement_boundary or positive_calibration_claim:
         errors.append("正文缺少‘未做真实标定’的研究边界。")
-    if not coherent_measurement_boundary or positive_mapping_claim is not None:
+    if not coherent_measurement_boundary or positive_mapping_claim:
         errors.append("正文缺少‘未建立运输倾角到测量结果映射’的研究边界。")
 
     return errors

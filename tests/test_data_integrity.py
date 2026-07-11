@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -348,6 +349,85 @@ generic cup transport
                     errors,
                 )
 
+    def test_clause_level_transport_contradiction_variants_are_rejected(self):
+        claims = (
+            "研究界限如下，10° 是制造商的精度限值。",
+            "10° 是行业允许倾角。",
+            "10° 是标准工作容差。",
+            "10° 属于测量精度要求。",
+            "10° 属于制造商测量精度限值。",
+            "行业测量精度标准采用 10°。",
+            "10° 是仪器制造商规定的测量精度阈值，20° 才是保守运输阈值",
+        )
+        for claim in claims:
+            with self.subTest(claim=claim):
+                errors = check_manuscript_theme(COMPLETE_THEODOLITE_THEME + "\n" + claim)
+                self.assertTrue(any("10°" in error for error in errors), errors)
+
+    def test_clause_level_positive_calibration_actions_are_rejected(self):
+        for action in ("开展", "完成", "执行", "进行", "实施", "获得", "验证", "采用"):
+            claim = f"本文{action}真实标定。"
+            with self.subTest(claim=claim):
+                errors = check_manuscript_theme(COMPLETE_THEODOLITE_THEME + "\n" + claim)
+                self.assertTrue(any("真实标定" in error for error in errors), errors)
+        exact_claims = (
+            "随后开展真实标定实验。",
+            "随后完成真实标定。",
+            "未执行仿真校准，随后完成了真实标定",
+        )
+        for claim in exact_claims:
+            with self.subTest(claim=claim):
+                errors = check_manuscript_theme(COMPLETE_THEODOLITE_THEME + "\n" + claim)
+                self.assertTrue(any("真实标定" in error for error in errors), errors)
+
+    def test_clause_level_positive_mapping_actions_are_rejected(self):
+        claims = (
+            "本文建立倾角到测量结果的映射。",
+            "本文给出倾角到测量结果的映射。",
+            "通过数据得到倾角与测量误差关系。",
+            "本文标定倾角与测量结果之间的映射。",
+            "本文拟合倾角对精度的映射。",
+            "随后建立运输倾角到测量结果的映射。",
+        )
+        for claim in claims:
+            with self.subTest(claim=claim):
+                errors = check_manuscript_theme(COMPLETE_THEODOLITE_THEME + "\n" + claim)
+                self.assertTrue(any("测量结果映射" in error for error in errors), errors)
+
+    def test_clause_level_explicit_negations_remain_valid(self):
+        manuscript = COMPLETE_THEODOLITE_THEME + """
+10° 不是制造商允许倾角。
+本文未开展真实标定。
+本文没有给出倾角到测量结果的映射。
+"""
+
+        self.assertEqual(check_manuscript_theme(manuscript), [])
+
+    def test_non_negating_fei_words_do_not_hide_positive_claims(self):
+        claims = (
+            ("本文非常顺利地完成真实标定。", "真实标定"),
+            ("本文建立倾角到测量结果的非线性映射。", "测量结果映射"),
+        )
+        for claim, expected_error_text in claims:
+            with self.subTest(claim=claim):
+                errors = check_manuscript_theme(COMPLETE_THEODOLITE_THEME + "\n" + claim)
+                self.assertTrue(
+                    any(expected_error_text in error for error in errors),
+                    errors,
+                )
+
+    def test_complete_is_a_positive_mapping_action(self):
+        manuscript = COMPLETE_THEODOLITE_THEME + "\n本文完成倾角到测量结果的映射。\n"
+
+        errors = check_manuscript_theme(manuscript)
+
+        self.assertTrue(any("测量结果映射" in error for error in errors), errors)
+
+    def test_bare_fei_directly_negating_specification_remains_valid(self):
+        manuscript = COMPLETE_THEODOLITE_THEME + "\n10° 非制造商允许倾角。\n"
+
+        self.assertEqual(check_manuscript_theme(manuscript), [])
+
 
 class FigureOutputTests(unittest.TestCase):
     @staticmethod
@@ -479,6 +559,29 @@ class WordFigureGuideTests(unittest.TestCase):
         self.assertIn("插入 → 对象", guide)
         self.assertNotIn("优先选择对应 PDF", guide)
         self.assertNotIn("优先使用 `figures/pgfplots/build/` 中的矢量 PDF", guide)
+
+    def test_caption_cells_contain_bodies_without_manual_figure_numbers(self):
+        guide_path = (
+            Path(__file__).resolve().parents[1]
+            / "review-stage"
+            / "round2_review"
+            / "WORD_FIGURE_GUIDE.md"
+        )
+        guide = guide_path.read_text(encoding="utf-8")
+        figure_rows = [
+            line
+            for line in guide.splitlines()
+            if re.match(r"\| 图[1-8] \|", line) and line.count("|") == 6
+        ]
+
+        self.assertIn("题注正文（不含自动编号）", guide)
+        self.assertEqual(len(figure_rows), 8)
+        for row in figure_rows:
+            caption_body = row.strip("|").split("|")[-1].strip()
+            self.assertNotRegex(caption_body, r"^图\s*[1-8]")
+        self.assertIn("Word 自动生成 `图 N`", guide)
+        self.assertIn("只粘贴题注正文", guide)
+        self.assertIn("不要手工输入图号", guide)
 
 
 if __name__ == "__main__":
