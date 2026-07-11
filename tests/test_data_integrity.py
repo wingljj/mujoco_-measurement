@@ -573,6 +573,36 @@ class ManuscriptFigureTests(unittest.TestCase):
             disclaimer_errors,
         )
 
+    def test_image_inside_indented_code_does_not_count(self):
+        manuscript = COMPLETE_MANUSCRIPT_FIGURES.replace(
+            "![图4](../outputs/figures/trajectory_3d_render.png)",
+            "    ![图4](../outputs/figures/trajectory_3d_render.png)",
+        )
+
+        errors = check_manuscript_figures(manuscript)
+
+        self.assertIn("正文缺少恢复图：trajectory_3d_render.png", errors)
+
+    def test_image_inside_blockquote_fence_does_not_count(self):
+        manuscript = COMPLETE_MANUSCRIPT_FIGURES.replace(
+            "![图2](../outputs/paper_figures/rendered_transport_snapshots.png)",
+            "> ```markdown\n"
+            "> ![图2](../outputs/paper_figures/rendered_transport_snapshots.png)\n"
+            "> ```",
+        )
+
+        errors = check_manuscript_figures(manuscript)
+
+        self.assertIn("正文缺少恢复图：rendered_transport_snapshots.png", errors)
+
+    def test_rendered_image_inside_plain_blockquote_still_counts(self):
+        manuscript = COMPLETE_MANUSCRIPT_FIGURES.replace(
+            "![图2](../outputs/paper_figures/rendered_transport_snapshots.png)",
+            "> ![图2](../outputs/paper_figures/rendered_transport_snapshots.png)",
+        )
+
+        self.assertEqual(check_manuscript_figures(manuscript), [])
+
 
 class FigureOutputTests(unittest.TestCase):
     @staticmethod

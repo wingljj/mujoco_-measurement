@@ -327,8 +327,19 @@ def _renderable_markdown_lines(manuscript: str) -> list[str]:
     rendered_lines: list[str] = []
     fence_character: str | None = None
     fence_length = 0
+    fence_blockquote_depth = 0
     for line in without_comments.splitlines():
-        fence = re.match(r" {0,3}(`{3,}|~{3,})", line)
+        container_line = line
+        blockquote_depth = 0
+        while True:
+            blockquote = re.match(r" {0,3}>[ \t]?", container_line)
+            if blockquote is None:
+                break
+            blockquote_depth += 1
+            container_line = container_line[blockquote.end() :]
+        fence = re.match(r" {0,3}(`{3,}|~{3,})", container_line)
+        if fence_character is not None and blockquote_depth < fence_blockquote_depth:
+            fence_character = None
         if fence_character is not None:
             rendered_lines.append("")
             if (
@@ -338,9 +349,13 @@ def _renderable_markdown_lines(manuscript: str) -> list[str]:
             ):
                 fence_character = None
             continue
+        if container_line.startswith(("    ", "\t")):
+            rendered_lines.append("")
+            continue
         if fence is not None:
             fence_character = fence.group(1)[0]
             fence_length = len(fence.group(1))
+            fence_blockquote_depth = blockquote_depth
             rendered_lines.append("")
             continue
         rendered_lines.append(re.sub(r"(`+).*?\1", "", line))
