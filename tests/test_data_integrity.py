@@ -1,4 +1,6 @@
 import sys
+import os
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -38,6 +40,26 @@ class DataIntegrityParserTests(unittest.TestCase):
                 "position_orientation": 96.0,
             },
         )
+
+    def test_cli_handles_legacy_windows_stdout_encoding(self):
+        root = Path(__file__).resolve().parents[1]
+        environment = os.environ.copy()
+        environment["PYTHONIOENCODING"] = "gbk"
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "review-stage/round2_review/check_data_integrity.py",
+                "--strict",
+            ],
+            cwd=root,
+            env=environment,
+            capture_output=True,
+            text=False,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr.decode("gbk", errors="replace"))
 
 
 if __name__ == "__main__":

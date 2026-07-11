@@ -75,6 +75,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     args = build_parser().parse_args()
     root = Path(__file__).resolve().parents[2]
     manuscript_path = root / "docs" / "theory_and_simulation.md"
