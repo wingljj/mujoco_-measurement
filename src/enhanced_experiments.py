@@ -235,6 +235,30 @@ def run_single_target_full_analysis(
     return result
 
 
+def summarize_sensitivity_sim(rows: List[dict]) -> List[dict]:
+    """Aggregate per-target sensitivity simulation rows by parameter level."""
+    grouped = defaultdict(list)
+    for row in rows:
+        grouped[(row["param"], row["value"])].append(row)
+
+    summaries = []
+    for (param, value), group in grouped.items():
+        total = len(group)
+        tilts = [
+            float(row["max_tilt_deg"])
+            for row in group
+            if np.isfinite(float(row["max_tilt_deg"]))
+        ]
+        summaries.append({
+            "param": param,
+            "value": value,
+            "ik_rate_pct": 100.0 * sum(bool(row["ik_ok"]) for row in group) / total,
+            "sim_rate_pct": 100.0 * sum(bool(row["sim_ok"]) for row in group) / total,
+            "mean_max_tilt": float(np.mean(tilts)) if tilts else float("nan"),
+        })
+    return summaries
+
+
 def main():
     parser = argparse.ArgumentParser(description="Enhanced experiment suite for Round 2 review")
     parser.add_argument("--model", default="kuka_kr20/kuka_kr20_cup_transport.xml")
@@ -249,6 +273,11 @@ def main():
     parser.add_argument("--settle-steps", type=int, default=2000)
     parser.add_argument("--mode", choices=["all", "multiseed", "sensitivity", "expanded", "dynamic", "full"], default="all")
     parser.add_argument("--skip-simulation", action="store_true")
+    parser.add_argument(
+        "--with-sim",
+        action="store_true",
+        help="Run MuJoCo tracking for every sensitivity level and target.",
+    )
     args = parser.parse_args()
 
     model_path = Path(args.model)
@@ -351,6 +380,7 @@ def main():
         rng = np.random.default_rng(99)
         sens_targets = _sample_targets(rng, min(50, args.targets))
         sens_summaries = []
+        sens_sim_results = []
 
         for param_name, values in SENSITIVITY_GRID.items():
             print(f"\n  Parameter: {param_name}")
@@ -365,10 +395,33 @@ def main():
 
                 planner = AblationPlanner(kin, config, args.tilt_limit_deg, args.position_tolerance)
                 plan_ok = 0
-                for target in sens_targets:
+                for target_idx, target in enumerate(sens_targets):
                     plan = planner.plan_to_target(target, steps=args.plan_steps)
                     if plan["success"]:
                         plan_ok += 1
+
+                    if args.with_sim:
+                        sim_ok = False
+                        final_error = float("nan")
+                        max_tilt = float("nan")
+                        if plan["success"] and run_sim:
+                            sim = _simulate_plan(
+                                model_path, plan,
+                                args.tilt_limit_deg, args.position_tolerance,
+                                args.sim_substeps, args.settle_steps, kin,
+                            )
+                            sim_ok = sim["success"]
+                            final_error = sim["final_error"]
+                            max_tilt = sim["max_tilt_deg"]
+                        sens_sim_results.append({
+                            "param": param_name,
+                            "value": value,
+                            "target_idx": target_idx,
+                            "ik_ok": plan["success"],
+                            "sim_ok": sim_ok,
+                            "final_error_m": final_error,
+                            "max_tilt_deg": max_tilt,
+                        })
 
                 rate = 100.0 * plan_ok / len(sens_targets)
                 print(f"    {param_name}={value:.4f}: IK rate={rate:.1f}%")
@@ -376,6 +429,11 @@ def main():
 
         _write_csv(sens_summaries, out_dir / "sensitivity_results.csv")
         all_mode_summaries["sensitivity"] = sens_summaries
+        if args.with_sim:
+            sens_sim_summaries = summarize_sensitivity_sim(sens_sim_results)
+            _write_csv(sens_sim_results, out_dir / "sensitivity_sim_results.csv")
+            _write_csv(sens_sim_summaries, out_dir / "sensitivity_sim_summary.csv")
+            all_mode_summaries["sensitivity_sim"] = sens_sim_summaries
 
     # ---- Expanded workspace ----
     if args.mode in ("all", "expanded", "full"):
