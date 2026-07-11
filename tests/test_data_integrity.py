@@ -497,7 +497,11 @@ class ManuscriptFigureTests(unittest.TestCase):
         errors = check_manuscript_figures(manuscript)
 
         self.assertTrue(
-            any("rendered_transport_snapshots.png" in error for error in errors), errors
+            any(
+                "正文缺少恢复图：rendered_transport_snapshots.png" in error
+                for error in errors
+            ),
+            errors,
         )
 
     def test_wrong_image_order_is_reported(self):
@@ -523,6 +527,51 @@ class ManuscriptFigureTests(unittest.TestCase):
         self.assertTrue(any("trajectory_3d_render.png" in error for error in errors), errors)
         self.assertTrue(any("简化刚性负载代理" in error for error in errors), errors)
         self.assertTrue(any("不代表真实经纬仪" in error for error in errors), errors)
+
+    def test_image_inside_html_comment_does_not_count(self):
+        manuscript = COMPLETE_MANUSCRIPT_FIGURES.replace(
+            "![图2](../outputs/paper_figures/rendered_transport_snapshots.png)",
+            "<!-- ![图2](../outputs/paper_figures/rendered_transport_snapshots.png) -->",
+        )
+
+        errors = check_manuscript_figures(manuscript)
+
+        self.assertIn("正文缺少恢复图：rendered_transport_snapshots.png", errors)
+
+    def test_image_inside_fenced_code_does_not_count(self):
+        manuscript = COMPLETE_MANUSCRIPT_FIGURES.replace(
+            "![图4](../outputs/figures/trajectory_3d_render.png)",
+            "```markdown\n![图4](../outputs/figures/trajectory_3d_render.png)\n```",
+        )
+
+        errors = check_manuscript_figures(manuscript)
+
+        self.assertIn("正文缺少恢复图：trajectory_3d_render.png", errors)
+
+    def test_inline_code_cannot_supply_image_or_disclaimer(self):
+        coded_image = COMPLETE_MANUSCRIPT_FIGURES.replace(
+            "![图2](../outputs/paper_figures/rendered_transport_snapshots.png)",
+            "`![图2](../outputs/paper_figures/rendered_transport_snapshots.png)`",
+        )
+        coded_disclaimer = COMPLETE_MANUSCRIPT_FIGURES.replace(
+            "该轨迹对应简化刚性负载代理，不代表真实经纬仪的动力学。",
+            "该轨迹对应`简化刚性负载代理`，`不代表真实经纬仪`的动力学。",
+        )
+
+        image_errors = check_manuscript_figures(coded_image)
+        disclaimer_errors = check_manuscript_figures(coded_disclaimer)
+
+        self.assertTrue(
+            any(
+                "正文缺少恢复图：rendered_transport_snapshots.png" in error
+                for error in image_errors
+            ),
+            image_errors,
+        )
+        self.assertTrue(
+            any("trajectory_3d_render.png" in error for error in disclaimer_errors),
+            disclaimer_errors,
+        )
 
 
 class FigureOutputTests(unittest.TestCase):

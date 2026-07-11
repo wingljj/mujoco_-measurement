@@ -316,10 +316,41 @@ def check_manuscript_theme(path_or_text: Path | str) -> list[str]:
     return errors
 
 
+def _renderable_markdown_lines(manuscript: str) -> list[str]:
+    """Mask Markdown regions that cannot render as manuscript prose or images."""
+    without_comments = re.sub(
+        r"<!--.*?-->",
+        lambda match: re.sub(r"[^\r\n]", " ", match.group(0)),
+        manuscript,
+        flags=re.DOTALL,
+    )
+    rendered_lines: list[str] = []
+    fence_character: str | None = None
+    fence_length = 0
+    for line in without_comments.splitlines():
+        fence = re.match(r" {0,3}(`{3,}|~{3,})", line)
+        if fence_character is not None:
+            rendered_lines.append("")
+            if (
+                fence is not None
+                and fence.group(1)[0] == fence_character
+                and len(fence.group(1)) >= fence_length
+            ):
+                fence_character = None
+            continue
+        if fence is not None:
+            fence_character = fence.group(1)[0]
+            fence_length = len(fence.group(1))
+            rendered_lines.append("")
+            continue
+        rendered_lines.append(re.sub(r"(`+).*?\1", "", line))
+    return rendered_lines
+
+
 def check_manuscript_figures(path_or_text: Path | str) -> list[str]:
     """Return errors for manuscript image order and restored-figure boundaries."""
     manuscript = _read_path_or_text(path_or_text)
-    lines = manuscript.splitlines()
+    lines = _renderable_markdown_lines(manuscript)
     image_pattern = re.compile(r"!\[[^\]]*\]\(([^)\s]+)")
     images: list[tuple[str, int]] = []
     for line_number, line in enumerate(lines):
